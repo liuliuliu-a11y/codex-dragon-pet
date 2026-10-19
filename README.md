@@ -18,6 +18,8 @@ Windows 悬浮桌面伙伴。银白发、紫瞳、龙角、白色中式裙装的
 
 校验、无人值守安装、升级和卸载说明见 [安装说明](docs/INSTALLATION.md)。
 
+如果 GitHub 匿名 API 提示限流，直接使用本页安装包链接或 [最新发布页面](https://github.com/liuliuliu-a11y/codex-dragon-pet/releases/latest) 下载即可。公开安装包不要求登录 GitHub，也不需要申请或提供 GitHub 令牌。
+
 需要同时打开 Codex 时，双击 `start-with-codex.cmd`；它会启动或复用已打开的 Codex 桌面应用，并启动小龙。这是联合启动入口，不会修改系统开机启动项或添加常驻监控程序。`start.cmd` 仍然只启动小龙。
 
 要让原来的 Codex 图标也能自动带起小龙，执行 `./scripts/Install.ps1`。它会为当前用户安装一个轻量联动程序并加入用户登录启动项；以后打开或重新激活新开的 Codex 桌面宿主窗口时，会启动小龙。联动程序只观察进程名和窗口激活事件，不读取窗口文本、键盘或聊天内容，也不做循环轮询。Codex 桌面宿主可能显示为 ChatGPT。

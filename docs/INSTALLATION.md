@@ -16,6 +16,8 @@
 
 把仓库网址交给 AI，要求它阅读本文件、优先下载最新 Release 的已编译安装包、核对 SHA-256，并在当前用户下安装。不要提供聊天记录、密码或令牌。
 
+AI 可以用 GitHub API 查找最新 Release；如果匿名 API 返回限流错误，应改用 [最新发布页面](https://github.com/liuliuliu-a11y/codex-dragon-pet/releases/latest) 或 README 的直接下载链接。页面会跳转到最新版本，附件也可以公开下载。不要因为 API 限流而要求用户提供 GitHub 令牌或登录凭据。
+
 支持 Inno Setup 的标准无人值守参数，例如：
 
 ```powershell
