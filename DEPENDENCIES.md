@@ -1,5 +1,6 @@
 # 依赖与运行环境
 
+- 普通用户：从 GitHub Release 下载 Setup.exe 或已编译运行 ZIP，不需要 C# 编译器或 Inno Setup。
 - 系统：Windows 10/11 x64。
 - 运行时：.NET Framework 4.8，使用系统自带的 WPF、Windows Forms、System.Drawing 和 JSON 序列化组件。
 - Codex：需要在这台电脑上运行并正常登录。聊天状态从本地 `sessions/*.jsonl` 增量读取；账户额度由现有 Codex 可执行程序的 App Server 查询。
@@ -7,6 +8,8 @@
 - PowerShell：Windows PowerShell 5.1 或 PowerShell 7，用于构建、打包和性能采样。
 - 自动联动：独立的 `CodexPetWatcher.exe` 使用 Windows 窗口激活事件和阻塞消息循环；不加载 WPF 渲染器，不要求管理员权限。`Install.ps1` 通过当前用户 Startup 快捷方式在登录时启动它。
 - 无需 Node.js、Python、Electron、完整 .NET SDK，也没有 npm、pip 或 NuGet 第三方包依赖。
+
+仅维护者重新生成安装包时需要 [Inno Setup 7](https://jrsoftware.org/isdl.php)。运行 `./scripts/Build-Installer.ps1 -CompilerPath '路径/ISCC.exe'`，脚本会重新构建、运行核心和 WPF 测试、打包运行 ZIP、生成安装 EXE 与 SHA-256 清单。发布包不包含 Inno Setup 编译器。
 
 不需要为桌宠填写 API 密钥。额度连接使用 Codex 已有登录状态，只发送初始化与 `account/rateLimits/read` 请求，不发起模型推理。
 

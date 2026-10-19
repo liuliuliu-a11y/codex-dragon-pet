@@ -1,6 +1,8 @@
 # Codex 小龙桌宠
 
-当前版本：0.2.0。Windows 本地悬浮桌宠，陪伴使用 Codex，并提示工作结束和额度变化。
+当前版本：0.2.1。Windows 本地悬浮桌宠，陪伴使用 Codex，并提示工作结束和额度变化。
+
+**下载即用，无需编译：[Windows 安装包](https://github.com/liuliuliu-a11y/codex-dragon-pet/releases/download/v0.2.1/CodexDragonPet-Setup-0.2.1.exe)** · [所有发布文件](https://github.com/liuliuliu-a11y/codex-dragon-pet/releases/latest)
 
 <img src="preview-v0.2.0.png" width="300" alt="Codex 小龙桌宠预览，额度为示例数据">
 
@@ -10,7 +12,11 @@ Windows 悬浮桌面伙伴。银白发、紫瞳、龙角、白色中式裙装的
 
 ## 使用
 
-双击 `start.cmd`，或者直接运行 `bin/CodexDragonPet.exe`。桌宠默认出现在屏幕右下角，置顶显示。已经运行时再次启动会把她从托盘唤回。
+普通用户下载上面的 `CodexDragonPet-Setup-0.2.1.exe`，双击安装即可。默认安装到当前用户的 `%LOCALAPPDATA%/Programs/CodexDragonPet`，提供桌面快捷方式和 Codex 自动联动选项，不要求管理员权限。请先在这台电脑安装并登录 Codex。卸载可从 Windows“已安装的应用”进入，会保留个人设置和 Codex 聊天。安装包尚未进行发布者代码签名。
+
+也提供已编译的 `codex-dragon-pet-0.2.1.zip`：解压到长期保留的位置，双击 `start.cmd`，或者直接运行 `bin/CodexDragonPet.exe`。桌宠默认出现在屏幕右下角，置顶显示。已经运行时再次启动会把她从托盘唤回。不要把 GitHub 自动生成的 Source code 压缩包当作免编译运行包。
+
+校验、无人值守安装、升级和卸载说明见 [安装说明](docs/INSTALLATION.md)。
 
 需要同时打开 Codex 时，双击 `start-with-codex.cmd`；它会启动或复用已打开的 Codex 桌面应用，并启动小龙。这是联合启动入口，不会修改系统开机启动项或添加常驻监控程序。`start.cmd` 仍然只启动小龙。
 
@@ -22,11 +28,11 @@ Windows 悬浮桌面伙伴。银白发、紫瞳、龙角、白色中式裙装的
 
 本仓库公开，Windows 用户可以直接把下面这段话交给 Codex：
 
-> 请安装 https://github.com/liuliuliu-a11y/codex-dragon-pet 。阅读 README 和 DEPENDENCIES.md，将项目克隆到一个长期保留的本机目录，运行 scripts/Install.ps1，构建并启动桌宠，确认自动联动正常。不要上传本机聊天、登录凭据或设置。
+> 请安装 https://github.com/liuliuliu-a11y/codex-dragon-pet 。先阅读 README 和 docs/INSTALLATION.md，从最新 GitHub Release 下载 Windows Setup.exe 和 SHA256SUMS.txt，校验文件后按当前用户安装并启用 Codex 自动联动，启动后确认正常。优先使用已编译安装包，无需自己编译。不要上传本机聊天、登录凭据或设置。
 
 安装只使用 Windows/.NET 自带组件，不需要填写新的 OpenAI API 密钥。
 
-也可以手动安装：
+开发者也可以从源码安装：
 
 ```powershell
 git clone https://github.com/liuliuliu-a11y/codex-dragon-pet.git

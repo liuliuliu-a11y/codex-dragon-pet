@@ -21,4 +21,5 @@ venv/
 *.suo
 diagnostics.json
 *.zip
+*.exe
 assets/dragon-sprites.png

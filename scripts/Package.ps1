@@ -1,13 +1,15 @@
-param([string]$Version = '0.2.0', [string]$OutputDirectory)
+param([string]$Version = '0.2.1', [string]$OutputDirectory, [string]$StageDirectory, [string]$BinaryDirectory)
 $ErrorActionPreference = 'Stop'
 $projectRoot = Split-Path -Parent $PSScriptRoot
 if (-not $OutputDirectory) { $OutputDirectory = Join-Path $projectRoot 'dist' }
 $destination = [System.IO.Path]::GetFullPath($OutputDirectory)
 New-Item -ItemType Directory -Path $destination -Force | Out-Null
-$stage = Join-Path $destination ('codex-dragon-pet-' + $Version)
+$stage = if ($StageDirectory) { [IO.Path]::GetFullPath($StageDirectory) } else { Join-Path $destination ('codex-dragon-pet-' + $Version + '-' + [Guid]::NewGuid().ToString('N')) }
+if (Test-Path -LiteralPath $stage) { throw 'Package staging directory must be new to avoid including stale files.' }
+if (-not $BinaryDirectory) { $BinaryDirectory = Join-Path $projectRoot 'bin' }
 New-Item -ItemType Directory -Path (Join-Path $stage 'bin/assets') -Force | Out-Null
 foreach ($file in @('CodexDragonPet.exe','CodexDragonPet.exe.config','CodexPetWatcher.exe','CodexPetWatcher.exe.config')) {
-    Copy-Item -LiteralPath (Join-Path $projectRoot ('bin/' + $file)) -Destination (Join-Path $stage 'bin') -Force
+    Copy-Item -LiteralPath (Join-Path $BinaryDirectory $file) -Destination (Join-Path $stage 'bin') -Force
 }
 Copy-Item -LiteralPath (Join-Path $projectRoot 'assets/dragon-sprites-clean.png') -Destination (Join-Path $stage 'bin/assets') -Force
 Copy-Item -LiteralPath (Join-Path $projectRoot 'assets/tray.ico') -Destination (Join-Path $stage 'bin/assets') -Force
