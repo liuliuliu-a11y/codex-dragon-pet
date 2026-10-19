@@ -5,6 +5,7 @@
 - Codex：需要在这台电脑上运行并正常登录。聊天状态从本地 `sessions/*.jsonl` 增量读取；账户额度由现有 Codex 可执行程序的 App Server 查询。
 - 构建：Windows 自带的 .NET Framework C# 编译器。`build.ps1` 使用 `%WINDIR%/Microsoft.NET/Framework64/v4.0.30319/csc.exe`，默认生成 x86 程序以降低本机测得的内存开销，可通过 `-Platform anycpu` 或 `-Platform x64` 切换。
 - PowerShell：Windows PowerShell 5.1 或 PowerShell 7，用于构建、打包和性能采样。
+- 自动联动：独立的 `CodexPetWatcher.exe` 使用 Windows 窗口激活事件和阻塞消息循环；不加载 WPF 渲染器，不要求管理员权限。`Install.ps1` 通过当前用户 Startup 快捷方式在登录时启动它。
 - 无需 Node.js、Python、Electron、完整 .NET SDK，也没有 npm、pip 或 NuGet 第三方包依赖。
 
 不需要为桌宠填写 API 密钥。额度连接使用 Codex 已有登录状态，只发送初始化与 `account/rateLimits/read` 请求，不发起模型推理。

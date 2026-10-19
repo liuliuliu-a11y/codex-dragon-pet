@@ -14,6 +14,28 @@ Windows 悬浮桌面伙伴。银白发、紫瞳、龙角、白色中式裙装的
 
 需要同时打开 Codex 时，双击 `start-with-codex.cmd`；它会启动或复用已打开的 Codex 桌面应用，并启动小龙。这是联合启动入口，不会修改系统开机启动项或添加常驻监控程序。`start.cmd` 仍然只启动小龙。
 
+要让原来的 Codex 图标也能自动带起小龙，执行 `./scripts/Install.ps1`。它会为当前用户安装一个轻量联动程序并加入用户登录启动项；以后打开或重新激活新开的 Codex 桌面宿主窗口时，会启动小龙。联动程序只观察进程名和窗口激活事件，不读取窗口文本、键盘或聊天内容，也不做循环轮询。Codex 桌面宿主可能显示为 ChatGPT。
+
+只想手动启动可用 `./scripts/Install.ps1 -NoAutoLink`；关闭已安装的自动联动用 `./scripts/Disable-CodexLink.ps1`，不会删除源码、桌宠设置或聊天。开启自动联动后请保留安装目录。
+
+## 让 Codex 帮别人安装
+
+本仓库公开，Windows 用户可以直接把下面这段话交给 Codex：
+
+> 请安装 https://github.com/liuliuliu-a11y/codex-dragon-pet 。阅读 README 和 DEPENDENCIES.md，将项目克隆到一个长期保留的本机目录，运行 scripts/Install.ps1，构建并启动桌宠，确认自动联动正常。不要上传本机聊天、登录凭据或设置。
+
+安装只使用 Windows/.NET 自带组件，不需要填写新的 OpenAI API 密钥。
+
+也可以手动安装：
+
+```powershell
+git clone https://github.com/liuliuliu-a11y/codex-dragon-pet.git
+cd codex-dragon-pet
+powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/Install.ps1
+```
+
+上述执行策略只对本次安装进程生效。请先在 Codex 桌面应用中正常登录；保持项目目录不被移动或删除，登录启动项才能继续找到联动程序。
+
 - **拖动角色**：移动位置，退出时自动保存。
 - **单击角色**：角色碎碎念和轻轻摇摆。
 - **双击角色 / 单击底部状态条**：打开工作与额度面板。

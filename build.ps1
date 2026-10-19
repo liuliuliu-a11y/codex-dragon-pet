@@ -15,8 +15,11 @@ $references += @('WindowsBase.dll','PresentationCore.dll','PresentationFramework
 $sources = @('State.cs','Monitor.cs','NativeWindow.cs','Companion.cs','App.cs') | ForEach-Object { Join-Path (Join-Path $petRoot 'src') $_ }
 & $compiler /nologo /target:winexe /optimize+ ('/platform:' + $Platform) ('/win32icon:' + $petIcon) '/codepage:65001' ('/out:' + (Join-Path $petBin 'CodexDragonPet.exe')) @references @sources
 if ($LASTEXITCODE -ne 0) { throw 'Build failed.' }
+& $compiler /nologo /target:winexe /optimize+ ('/platform:' + $Platform) ('/win32icon:' + $petIcon) ('/out:' + (Join-Path $petBin 'CodexPetWatcher.exe')) /r:System.dll /r:System.Core.dll (Join-Path $petRoot 'src/CodexWatcher.cs')
+if ($LASTEXITCODE -ne 0) { throw 'Codex link build failed.' }
 Copy-Item -LiteralPath (Join-Path $petRoot 'assets') -Destination $petBin -Recurse -Force
 Copy-Item -LiteralPath (Join-Path $petRoot 'CodexDragonPet.exe.config') -Destination $petBin -Force
+Copy-Item -LiteralPath (Join-Path $petRoot 'CodexDragonPet.exe.config') -Destination (Join-Path $petBin 'CodexPetWatcher.exe.config') -Force
 if ($Test) {
     $tests = @((Join-Path $petRoot 'src/State.cs'),(Join-Path $petRoot 'src/Monitor.cs'),(Join-Path $petRoot 'tests/Tests.cs'))
     & $compiler /nologo /target:exe /optimize+ ('/platform:' + $Platform) '/codepage:65001' ('/out:' + (Join-Path $petBin 'PetTests.exe')) @references @tests
