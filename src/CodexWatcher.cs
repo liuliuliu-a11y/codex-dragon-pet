@@ -11,6 +11,7 @@ namespace CodexDragonLink
         private delegate void WinEvent(IntPtr hook, uint kind, IntPtr window, int obj, int child, uint thread, uint time);
         private static readonly WinEvent Callback = OnForeground;
         private static int lastHost;
+        private static IntPtr lastHostWindow;
         private static readonly int Session = Process.GetCurrentProcess().SessionId;
         [StructLayout(LayoutKind.Sequential)] private struct Point { public int X, Y; }
         [StructLayout(LayoutKind.Sequential)] private struct Message
@@ -66,7 +67,7 @@ namespace CodexDragonLink
                         try
                         {
                             if (IsHost(process) && process.MainWindowHandle != IntPtr.Zero)
-                            { lastHost = process.Id; StartPet(); return true; }
+                            { lastHost = process.Id; lastHostWindow = process.MainWindowHandle; StartPet(); return true; }
                         }
                         catch (InvalidOperationException) { } catch (System.ComponentModel.Win32Exception) { }
                     }
@@ -80,7 +81,12 @@ namespace CodexDragonLink
                 using (var process = Process.GetProcessById((int)id))
                 {
                     if (IsHost(process) && process.MainWindowHandle != IntPtr.Zero)
-                    { if (lastHost != process.Id) { lastHost = process.Id; StartPet(); } return; }
+                    {
+                        // A desktop host can reuse its process for a newly opened window.
+                        if (lastHost != process.Id || lastHostWindow != window)
+                        { lastHost = process.Id; lastHostWindow = window; StartPet(); }
+                        return;
+                    }
                 }
                 if (lastHost != 0)
                 {

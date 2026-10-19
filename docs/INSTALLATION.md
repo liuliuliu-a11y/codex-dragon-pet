@@ -19,7 +19,7 @@
 支持 Inno Setup 的标准无人值守参数，例如：
 
 ```powershell
-$setup = Start-Process -FilePath './CodexDragonPet-Setup-0.2.1.exe' -ArgumentList '/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART' -PassThru
+$setup = Start-Process -FilePath './CodexDragonPet-Setup-0.2.2.exe' -ArgumentList '/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART','/TASKS=desktopicon,autolink' -PassThru
 $setup.WaitForExit()
 if ($setup.ExitCode -ne 0) { throw "Installation failed: $($setup.ExitCode)" }
 ```
@@ -27,6 +27,16 @@ if ($setup.ExitCode -ne 0) { throw "Installation failed: $($setup.ExitCode)" }
 静默安装后可运行 `%LOCALAPPDATA%/Programs/CodexDragonPet/bin/CodexDragonPet.exe`。默认选择的联动程序也会运行；如果 Codex 已打开，它会带起桌宠。
 
 这里使用进程对象的 `WaitForExit()`；PowerShell 的 `Start-Process -Wait` 会连同常驻桌宠等子进程一起等待，可能一直不返回。
+
+`/TASKS=desktopicon,autolink` 明确开启桌面快捷方式与自动联动，避免沿用上次安装时关闭联动的选择。AI 应确认有本机程序执行能力；仅能聊天的 AI 需要指导用户运行安装器。
+
+安装完成后，AI 还应检查以下结果，不能只凭安装器退出码就报告全部成功：
+
+- 当前用户 Startup 中存在 `Codex Dragon Pet Link.lnk`，目标指向实际安装目录下的 `bin/CodexPetWatcher.exe`；对应的辅助进程正在运行。
+- 正常打开 Codex 桌面应用后，小龙可见。v0.2.2 支持 Codex 在同一个进程里新开窗口；重复启动不会多开桌宠。
+- 若 Windows“启动应用”设置禁用了该快捷方式，后续登录不会启动联动程序，需要用户重新启用。不要为测试强行关闭正在运行安装任务的 Codex、退出 Windows 或重启电脑。
+
+本次发布已验证公开下载与 SHA-256、当前用户安装、真实登录启动快捷方式，以及通过 Windows 注册入口打开实际 Codex 后自动带起桌宠。新窗口的回归检查另用隔离窗口宿主覆盖，测试不依赖读取真实聊天。
 
 ## 升级与卸载
 

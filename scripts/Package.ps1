@@ -1,4 +1,4 @@
-param([string]$Version = '0.2.1', [string]$OutputDirectory, [string]$StageDirectory, [string]$BinaryDirectory)
+param([string]$Version = '0.2.2', [string]$OutputDirectory, [string]$StageDirectory, [string]$BinaryDirectory)
 $ErrorActionPreference = 'Stop'
 $projectRoot = Split-Path -Parent $PSScriptRoot
 if (-not $OutputDirectory) { $OutputDirectory = Join-Path $projectRoot 'dist' }
