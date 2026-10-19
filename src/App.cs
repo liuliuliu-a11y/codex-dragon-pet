@@ -228,7 +228,7 @@ namespace CodexDragon
                 SetupTray();
                 timer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
                 timer.Tick += delegate { Tick(); }; timer.Start(); Tick();
-                Say("Codex 小龙 · 已就位", "我在旁边陪你。工作结束时，我会叫你回来。", 12);
+                Say("Codex 小龙", "已就位，陪你工作。", 8);
             }
             else monitor = new SessionMonitor(System.IO.Path.Combine(System.IO.Path.GetTempPath(), "codex-pet-preview-no-sessions"));
         }
@@ -283,7 +283,7 @@ namespace CodexDragon
             if (!settings.Notifications) return;
             if (!String.IsNullOrEmpty(settings.PinnedThread) && session.Id != settings.PinnedThread) return;
             lastCompletedId = session.Id;
-            Say("本轮工作结束啦", session.Result.Length > 0 ? Ui.Short(session.Result, 90) : "回来看看 Codex 的结果吧。", 25); SetMood(Mood.Done); Wiggle();
+            Say("本轮工作结束啦", "回来看看结果吧。", 25); SetMood(Mood.Done); Wiggle();
             if (settings.Sound && !settings.Quiet) SystemSounds.Asterisk.Play();
             if (tray != null && !settings.Quiet)
             {
@@ -323,7 +323,7 @@ namespace CodexDragon
             else
             {
                 bubbleTitle.Text = selected != null && selected.Running ? "Codex · 工作进展" : "Codex 小龙";
-                bubbleText.Text = selected != null && selected.Running ? Ui.Short(String.IsNullOrEmpty(selected.PublicMessage) ? stage : selected.PublicMessage, 95) : mood == Mood.Done ? "这一轮结束了，结果在 Codex 里等你。" : "我在这里。双击我，可以看工作状态和额度。";
+                bubbleText.Text = selected != null && selected.Running ? stage : mood == Mood.Done ? "结果已就绪。" : "我在这里。";
             }
             UpdateBubbleVisibility();
             if (tray != null) tray.Text = Ui.Short("Codex 小龙 · " + stage, 60);
@@ -520,7 +520,7 @@ namespace CodexDragon
             floatTransform.BeginAnimation(TranslateTransform.YProperty, null);
             scene.Background = Ui.Brush("#F6F4F8");
             SetMood(Mood.Working); bubbleTitle.Text = "Codex · 工作进展";
-            bubbleText.Text = "正在把你的想法变成桌面伙伴。做好后，小龙会叫你回来。";
+            bubbleText.Text = "正在检查和测试。";
             statusText.Text = "● 正在工作"; quotaText.Text = "  ·  已用 2%（示例）";
             scene.Measure(new Size(330, 438)); scene.Arrange(new Rect(0, 0, 330, 438)); scene.UpdateLayout();
             var bitmap = new RenderTargetBitmap(660, 876, 192, 192, PixelFormats.Pbgra32); bitmap.Render(scene);

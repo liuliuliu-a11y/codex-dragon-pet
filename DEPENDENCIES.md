@@ -11,4 +11,6 @@
 
 首次从源码启动时，`start.cmd` 会在 `bin/` 中缺少程序时调用 `build.ps1`。运行包中已包含程序，可以直接双击 `start.cmd`。
 
+`start-with-codex.cmd` 为联合启动入口，使用 Windows 已注册的 OpenAI.Codex 应用标识唤起 Codex，不会把 Codex CLI 当成桌面程序启动。
+
 GPU 性能采样依赖 Windows 的 GPU Engine 与 GPU Process Memory 计数器；计数器不可用时会记为 `null`，不会当作 0。

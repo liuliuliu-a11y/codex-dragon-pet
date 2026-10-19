@@ -112,7 +112,7 @@ public static class UiIntegration
                     var state = Json.Parse(File.ReadAllText(Path.Combine(completed, "live-check.json")));
                     Check(Json.Get(state, "running").Equals(false) && Json.Number(state, "spriteFrame") == 3, "completion event selects celebration sprite");
                     Check(Json.Text(state, "bubbleTitle") == "本轮工作结束啦", "completion bubble is actually displayed");
-                    Check(Json.Get(state, "bubbleVisible").Equals(true) && Json.Text(state, "bubbleText") == "任务结果已就绪。", "completion overrides folding and displays the actual result");
+                    Check(Json.Get(state, "bubbleVisible").Equals(true) && Json.Text(state, "bubbleText") == "回来看看结果吧。", "completion overrides folding with a short status message");
                     Check(Json.Text(state, "lastCompletedThreadId") == ThreadId, "real notification callback was dispatched");
                     Check(File.Exists(Path.Combine(completed, "live-pet.png")), "completed native UI was rendered for inspection");
                     timer.Stop(); pet.Close();

@@ -139,7 +139,7 @@ namespace CodexDragon
                 if (type == "task_started")
                 {
                     TurnId = Json.Text(payload, "turn_id"); Running = true; Mood = Mood.Thinking;
-                    Stage = "开始处理你的请求"; PublicMessage = ""; Result = ""; Started = at; Updated = at;
+                    Stage = "正在准备"; PublicMessage = ""; Result = ""; Started = at; Updated = at;
                 }
                 else if (type == "task_complete")
                 {
@@ -216,7 +216,7 @@ namespace CodexDragon
             else if (activity.Contains("web__") || activity.Contains("search") || activity.Contains("browser") || activity.Contains("cua")) Stage = "正在查阅资料";
             else if (activity.Contains("get-content") || activity.Contains("read_file") || activity.Contains("rg ")) Stage = "正在阅读文件";
             else if (activity.Contains("wait") || activity.Contains("sleep")) { Stage = "正在等待结果"; Mood = Mood.Waiting; }
-            else Stage = "正在使用工具处理任务";
+            else Stage = "正在处理任务";
             Updated = at;
         }
     }

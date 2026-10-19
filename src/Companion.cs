@@ -60,7 +60,7 @@ namespace CodexDragon
         private void PetHead()
         {
             pettingCount++;
-            string[] replies = { "嗯…收到摸摸了。小龙继续陪你工作。", "角角有点痒。再陪你认真一会儿。", "被你发现我在这里啦。今天也一起加油。" };
+            string[] replies = { "收到摸摸，继续加油。", "角角有点痒。", "今天也一起加油。" };
             Say("角色碎碎念", replies[random.Next(replies.Length)], 8); Wiggle();
             if (settings.ReduceMotion) return;
             heart.Opacity = 1;

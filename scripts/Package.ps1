@@ -11,11 +11,13 @@ foreach ($file in @('CodexDragonPet.exe','CodexDragonPet.exe.config')) {
 }
 Copy-Item -LiteralPath (Join-Path $projectRoot 'assets/dragon-sprites-clean.png') -Destination (Join-Path $stage 'bin/assets') -Force
 Copy-Item -LiteralPath (Join-Path $projectRoot 'assets/tray.ico') -Destination (Join-Path $stage 'bin/assets') -Force
-foreach ($file in @('start.cmd','README.md','DEPENDENCIES.md')) {
+foreach ($file in @('start.cmd','start-with-codex.cmd','README.md','DEPENDENCIES.md')) {
     Copy-Item -LiteralPath (Join-Path $projectRoot $file) -Destination $stage -Force
 }
 Copy-Item -LiteralPath (Join-Path $projectRoot 'docs') -Destination $stage -Recurse -Force
 Copy-Item -LiteralPath (Join-Path $projectRoot 'preview-v0.2.0.png') -Destination $stage -Force
+New-Item -ItemType Directory -Path (Join-Path $stage 'scripts') -Force | Out-Null
+Copy-Item -LiteralPath (Join-Path $projectRoot 'scripts/Start-WithCodex.ps1') -Destination (Join-Path $stage 'scripts') -Force
 $archive = Join-Path $destination ('codex-dragon-pet-' + $Version + '.zip')
 Compress-Archive -Path (Join-Path $stage '*') -DestinationPath $archive -Force
 $checksum = Get-FileHash -LiteralPath $archive -Algorithm SHA256
