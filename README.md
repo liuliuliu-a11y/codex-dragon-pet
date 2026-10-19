@@ -24,13 +24,15 @@ Windows 悬浮桌面伙伴。银白发、紫瞳、龙角、白色中式裙装的
 
 只想手动启动可用 `./scripts/Install.ps1 -NoAutoLink`；关闭已安装的自动联动用 `./scripts/Disable-CodexLink.ps1`，不会删除源码、桌宠设置或聊天。开启自动联动后请保留安装目录。
 
-## 让 Codex 帮别人安装
+## 简介与 AI 安装指令（可直接转发）
 
-本仓库公开，Windows 用户可以直接把下面这段话交给 Codex：
+分享一个我做的 Codex 小龙桌宠：Q 版小龙陪你工作，支持随 Codex 自动启动、简短工作状态、任务完成提醒和额度用量显示，还能拖动、摸头互动。支持 Windows 10/11，下载即可安装，无需编译，也不用另外配置 API 密钥。
 
-> 请安装 https://github.com/liuliuliu-a11y/codex-dragon-pet 。先阅读 README 和 docs/INSTALLATION.md，从最新 GitHub Release 下载 Windows Setup.exe 和 SHA256SUMS.txt，校验文件后按当前用户安装并启用 Codex 自动联动，启动后确认正常。优先使用已编译安装包，无需自己编译。不要上传本机聊天、登录凭据或设置。
+把下面这段发给能操作你电脑的 AI（如 Codex）：
 
-安装只使用 Windows/.NET 自带组件，不需要填写新的 OpenAI API 密钥。
+> 请帮我安装这个桌宠：https://github.com/liuliuliu-a11y/codex-dragon-pet 。阅读 README 和 docs/INSTALLATION.md，从最新 Release 下载已编译安装包和 SHA256SUMS.txt，校验后按当前用户安装，开启 Codex 自动联动并启动检查。请保留已有设置和聊天记录，不要上传本机数据。
+
+使用前请在本机安装并登录 Codex；需要 .NET Framework 4.8。没有本机操作能力的 AI 也可以按文档指导你手动安装。
 
 开发者也可以从源码安装：
 
