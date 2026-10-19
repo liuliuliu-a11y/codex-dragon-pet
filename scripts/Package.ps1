@@ -14,6 +14,8 @@ Copy-Item -LiteralPath (Join-Path $projectRoot 'assets/tray.ico') -Destination (
 foreach ($file in @('start.cmd','README.md','DEPENDENCIES.md')) {
     Copy-Item -LiteralPath (Join-Path $projectRoot $file) -Destination $stage -Force
 }
+Copy-Item -LiteralPath (Join-Path $projectRoot 'docs') -Destination $stage -Recurse -Force
+Copy-Item -LiteralPath (Join-Path $projectRoot 'preview-v0.2.0.png') -Destination $stage -Force
 $archive = Join-Path $destination ('codex-dragon-pet-' + $Version + '.zip')
 Compress-Archive -Path (Join-Path $stage '*') -DestinationPath $archive -Force
 $checksum = Get-FileHash -LiteralPath $archive -Algorithm SHA256
