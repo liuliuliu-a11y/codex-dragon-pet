@@ -1,4 +1,4 @@
-param([string]$Version = '0.2.2', [string]$OutputDirectory, [string]$StageDirectory, [string]$BinaryDirectory)
+param([string]$Version = '0.4.0', [string]$OutputDirectory, [string]$StageDirectory, [string]$BinaryDirectory)
 $ErrorActionPreference = 'Stop'
 $projectRoot = Split-Path -Parent $PSScriptRoot
 if (-not $OutputDirectory) { $OutputDirectory = Join-Path $projectRoot 'dist' }
@@ -12,6 +12,8 @@ foreach ($file in @('CodexDragonPet.exe','CodexDragonPet.exe.config','CodexPetWa
     Copy-Item -LiteralPath (Join-Path $BinaryDirectory $file) -Destination (Join-Path $stage 'bin') -Force
 }
 Copy-Item -LiteralPath (Join-Path $projectRoot 'assets/dragon-sprites-clean.png') -Destination (Join-Path $stage 'bin/assets') -Force
+Copy-Item -LiteralPath (Join-Path $projectRoot 'assets/dragon-actions.png') -Destination (Join-Path $stage 'bin/assets') -Force
+Copy-Item -LiteralPath (Join-Path $BinaryDirectory 'assets/layered') -Destination (Join-Path $stage 'bin/assets') -Recurse -Force
 Copy-Item -LiteralPath (Join-Path $projectRoot 'assets/tray.ico') -Destination (Join-Path $stage 'bin/assets') -Force
 foreach ($file in @('start.cmd','start-with-codex.cmd','README.md','DEPENDENCIES.md')) {
     Copy-Item -LiteralPath (Join-Path $projectRoot $file) -Destination $stage -Force

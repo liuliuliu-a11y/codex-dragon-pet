@@ -100,6 +100,8 @@ namespace CodexDragon
         public string Id, FilePath, Title = "Codex 聊天", Project = "", TurnId = "", Stage = "在这里陪你", PublicMessage = "", Result = "", Model = "";
         public Mood Mood = Mood.Idle;
         public bool Running, IsChild;
+        public bool Finishing { get; private set; }
+        public bool HasFinalOutput { get; private set; }
         public DateTime Updated = DateTime.MinValue, Started = DateTime.MinValue;
         public double Tokens;
         private readonly HashSet<string> completed = new HashSet<string>();
@@ -139,6 +141,7 @@ namespace CodexDragon
                 if (type == "task_started")
                 {
                     TurnId = Json.Text(payload, "turn_id"); Running = true; Mood = Mood.Thinking;
+                    Finishing = false; HasFinalOutput = false;
                     Stage = "正在准备"; PublicMessage = ""; Result = ""; Started = at; Updated = at;
                 }
                 else if (type == "task_complete")
@@ -146,23 +149,26 @@ namespace CodexDragon
                     string id = Json.Text(payload, "turn_id", "root_turn_id");
                     if (id.Length == 0) id = at.Ticks.ToString(CultureInfo.InvariantCulture);
                     if (completed.Contains(id)) return false;
+                    // A late completion from an older turn must not finish the current turn.
+                    if (TurnId.Length > 0 && id != TurnId) return false;
                     completed.Add(id);
                     if (completed.Count > 256) { completed.Clear(); completed.Add(id); }
-                    // A late completion from an older turn must not finish the current turn.
-                    if (Running && TurnId.Length > 0 && id != TurnId) return false;
                     bool notify = Running && !history;
-                    Running = false; Mood = Mood.Done; Stage = "本轮工作结束啦"; Updated = at;
-                    Result = CleanText(ReadMessage(Json.Get(payload, "last_agent_message")));
+                    string result = CleanText(ReadMessage(Json.Get(payload, "last_agent_message")));
+                    if (result.Length > 0) { Result = result; HasFinalOutput = true; }
+                    TurnId = id; Finishing = notify; Running = notify; Updated = at;
+                    Mood = notify ? Mood.Working : Mood.Done;
+                    Stage = notify ? "正在收尾，确认结果" : "本轮工作结束啦";
                     return notify;
                 }
                 else if (type == "turn_aborted" || type == "task_interrupted" || type == "task_cancelled")
-                { Running = false; Mood = Mood.Stopped; Stage = "本轮已中断"; Updated = at; }
+                { Finishing = false; Running = false; Mood = Mood.Stopped; Stage = "本轮已中断"; Updated = at; }
                 else if (type == "task_failed" || type == "error")
-                { Running = false; Mood = Mood.Stopped; Stage = "遇到问题，回 Codex 看看"; Updated = at; }
+                { Finishing = false; Running = false; Mood = Mood.Stopped; Stage = "遇到问题，回 Codex 看看"; Updated = at; }
                 else if (type == "item_completed")
                 {
                     var item = Json.Map(Json.Get(payload, "item")); string itemType = Json.Text(item, "type");
-                    if (itemType == "AgentMessage" && Json.Text(item, "phase") == "commentary") SetPublic(ReadMessage(Json.Get(item, "content")));
+                    if (itemType == "AgentMessage") ReadAssistant(Json.Text(item, "phase"), ReadMessage(Json.Get(item, "content")), at);
                     if (Running && itemType == "CommandExecution") SetActivity(Json.Text(item, "command"), at);
                     if (Running && itemType == "McpToolCall") SetActivity(Json.Text(item, "tool"), at);
                 }
@@ -171,8 +177,8 @@ namespace CodexDragon
             }
             if (kind != "response_item") return false;
             string responseType = Json.Text(payload, "type");
-            if (responseType == "message" && Json.Text(payload, "role") == "assistant" && Json.Text(payload, "phase") == "commentary")
-            { SetPublic(ReadMessage(Json.Get(payload, "content"))); Updated = at; }
+            if (responseType == "message" && Json.Text(payload, "role") == "assistant")
+                ReadAssistant(Json.Text(payload, "phase"), ReadMessage(Json.Get(payload, "content")), at);
             else if (responseType == "function_call" || responseType == "custom_tool_call")
             {
                 // Startup reads a bounded tail; the matching start may be outside that tail.
@@ -180,6 +186,31 @@ namespace CodexDragon
                 if (Running) SetActivity(Json.Text(payload, "name") + " " + Json.Text(payload, "arguments", "input"), at);
             }
             return false;
+        }
+
+        // The monitor confirms only after the entire log batch and a quiet interval.
+        public bool ConfirmCompletion()
+        {
+            if (!Finishing || !HasFinalOutput) return false;
+            Finishing = false; Running = false; Mood = Mood.Done; Stage = "本轮工作结束啦";
+            return true;
+        }
+        private void ResumeActivity()
+        {
+            if (!Finishing) return;
+            completed.Remove(TurnId);
+            Finishing = false; HasFinalOutput = false; Result = "";
+            Mood = Mood.Working; Stage = "正在处理任务";
+        }
+        private void ReadAssistant(string phase, string text, DateTime at)
+        {
+            if (phase == "commentary") { ResumeActivity(); SetPublic(text); Updated = at; }
+            else if (phase == "final_answer" || phase == "final")
+            {
+                string result = CleanText(text);
+                if (result.Length > 0) { Result = result; HasFinalOutput = true; }
+                if (Running) { Mood = Mood.Working; Stage = Finishing ? "正在收尾，确认结果" : "正在输出结果"; Updated = at; }
+            }
         }
 
         private static string ReadMessage(object raw)
@@ -209,6 +240,7 @@ namespace CodexDragon
         }
         private void SetActivity(string activity, DateTime at)
         {
+            ResumeActivity();
             activity = (activity ?? "").ToLowerInvariant(); Mood = Mood.Working;
             if (activity.Contains("imagegen") || activity.Contains("image_gen")) Stage = "正在画图";
             else if (activity.Contains("test") || activity.Contains("pytest") || activity.Contains("验证")) Stage = "正在检查和测试";
@@ -226,6 +258,7 @@ namespace CodexDragon
         public double Left = -999999, Top = -999999, Scale = 1;
         public bool Sound = true, Topmost = true, Bubble = true, SmallTalk = true, Notifications = true;
         public bool AutoBubble = true, ClickThrough, Quiet, ReduceMotion;
+        public bool DailyActions = true;
         public string PinnedThread = "";
         public static readonly string Folder = DataFolder();
         private static string DataFolder()

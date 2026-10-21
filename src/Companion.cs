@@ -28,16 +28,16 @@ namespace CodexDragon
             heart.IsHitTestVisible = false; heart.Opacity = 0;
             heart.HorizontalAlignment = HorizontalAlignment.Center; heart.VerticalAlignment = VerticalAlignment.Bottom;
             heart.Margin = new Thickness(105, 0, 0, 260); scene.Children.Add(heart);
-            sprite.MouseEnter += delegate { hovering = true; RefreshView(); };
-            sprite.MouseLeave += delegate
+            character.MouseEnter += delegate { hovering = true; RefreshView(); };
+            character.MouseLeave += delegate
             {
                 hovering = false;
-                if (!settings.ReduceMotion && !dragging) AnimateTilt(0, .25);
+                if (!settings.ReduceMotion && !dragging && action.Current == PetAction.None) AnimateTilt(0, .25);
             };
-            sprite.MouseMove += delegate(object sender, MouseEventArgs e)
+            character.MouseMove += delegate(object sender, MouseEventArgs e)
             {
-                if (settings.ReduceMotion || dragging || e.LeftButton == MouseButtonState.Pressed) return;
-                double x = e.GetPosition(sprite).X / Math.Max(1, sprite.ActualWidth) - .5;
+                if (settings.ReduceMotion || dragging || action.Current != PetAction.None || e.LeftButton == MouseButtonState.Pressed) return;
+                double x = e.GetPosition(character).X / Math.Max(1, character.ActualWidth) - .5;
                 AnimateTilt(Math.Max(-1.8, Math.Min(1.8, x * 3.6)), .18);
             };
             SourceInitialized += delegate { ApplyClickThrough(); };
@@ -46,7 +46,9 @@ namespace CodexDragon
         private void ApplyMotion()
         {
             floatTransform.BeginAnimation(TranslateTransform.YProperty, null);
-            if (settings.ReduceMotion || !IsVisible) { floatTransform.Y = 0; tiltTransform.BeginAnimation(RotateTransform.AngleProperty, null); tiltTransform.Angle = 0; return; }
+            RefreshLayeredPet();
+            if (settings.ReduceMotion || !IsVisible || action.Current != PetAction.None) { floatTransform.Y = 0; tiltTransform.BeginAnimation(RotateTransform.AngleProperty, null); tiltTransform.Angle = 0; return; }
+            if (LayeredRequested) { floatTransform.Y = 0; return; }
             var breathing = new DoubleAnimation(-2, 3, TimeSpan.FromSeconds(2.2)) { AutoReverse = true, RepeatBehavior = RepeatBehavior.Forever, EasingFunction = new SineEase { EasingMode = EasingMode.EaseInOut } };
             Timeline.SetDesiredFrameRate(breathing, settings.Quiet ? 3 : 6);
             floatTransform.BeginAnimation(TranslateTransform.YProperty, breathing);
@@ -101,6 +103,7 @@ namespace CodexDragon
         private void SetQuiet(bool quiet)
         {
             settings.Quiet = quiet; ApplyMotion(); Persist();
+            if (quiet && (action.Current == PetAction.Blink || action.Current == PetAction.Stretch)) StopAction();
             if (quiet) progressUntil = DateTime.MinValue;
             Say("陪伴方式", quiet ? "进入安静陪伴。完成时给你看气泡，声音和弹窗先收起来。" : "恢复日常陪伴啦。", 8);
             ContextMenu = MakeMenu();
@@ -110,7 +113,8 @@ namespace CodexDragon
             var options = new WrapPanel { Margin = new Thickness(0, 0, 0, 14) };
             AddCheck(options, "气泡自动收起", settings.AutoBubble, delegate(bool value) { settings.AutoBubble = value; UpdateBubbleVisibility(); });
             AddCheck(options, "安静陪伴", settings.Quiet, SetQuiet);
-            AddCheck(options, "减少动画", settings.ReduceMotion, delegate(bool value) { settings.ReduceMotion = value; ApplyMotion(); });
+            AddCheck(options, "减少动画", settings.ReduceMotion, delegate(bool value) { settings.ReduceMotion = value; if (value) StopAction(); ApplyMotion(); });
+            AddCheck(options, "日常小动作", settings.DailyActions, SetDailyActions);
             clickThroughCheck = new CheckBox { Content = "鼠标穿透", IsChecked = settings.ClickThrough, FontSize = 11, Foreground = Ui.Ink, Margin = new Thickness(0, 0, 20, 5) };
             clickThroughCheck.Click += delegate { SetClickThrough(clickThroughCheck.IsChecked == true); };
             options.Children.Add(clickThroughCheck); content.Children.Add(options);

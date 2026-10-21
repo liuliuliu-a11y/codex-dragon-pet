@@ -43,6 +43,8 @@ public static class UiIntegration
         Environment.SetEnvironmentVariable("CODEX_HOME", fixture);
         Environment.SetEnvironmentVariable("CODEX_PET_DATA_DIR", Path.Combine(fixture, "pet-data"));
         string file = Path.Combine(sessions, "rollout-" + ThreadId + ".jsonl");
+        string otherFile = Path.Combine(sessions, "rollout-00000000-0000-0000-0000-000000000124.jsonl");
+        File.WriteAllText(otherFile, Record("{\"type\":\"task_started\",\"turn_id\":\"other-turn\"}"), new UTF8Encoding(false));
         File.WriteAllText(file,
             Record("{\"type\":\"task_started\",\"turn_id\":\"ui-integration-turn\"}") +
             "{\"timestamp\":\"" + DateTime.UtcNow.ToString("o") + "\",\"type\":\"response_item\",\"payload\":{\"type\":\"function_call\",\"name\":\"exec_command\",\"arguments\":\"run tests\"}}\n" +
@@ -69,14 +71,22 @@ public static class UiIntegration
                     var quota = Json.Map(Json.Get(state, "quota"));
                     var windows = (object[])Json.Get(quota, "windows");
                     Check(Json.Number(Json.Map(windows[0]), "used") == 42, "quota event reaches the rendered pet state");
-                    var character = (Image)LogicalTreeHelper.FindLogicalNode(pet, "PetCharacter");
+                    File.AppendAllText(otherFile, Record("{\"type\":\"task_complete\",\"turn_id\":\"other-turn\",\"last_agent_message\":\"Other result\"}"), new UTF8Encoding(false));
+                    var character = (FrameworkElement)LogicalTreeHelper.FindLogicalNode(pet, "PetCharacterHost");
                     character.RaiseEvent(new MouseButtonEventArgs(Mouse.PrimaryDevice, Environment.TickCount, MouseButton.Left) { RoutedEvent = UIElement.MouseLeftButtonUpEvent });
-                    string interaction = Path.Combine(evidence, "petting"); pet.SaveEvidence(interaction);
-                    var petted = Json.Parse(File.ReadAllText(Path.Combine(interaction, "live-check.json")));
-                    Check(Json.Number(petted, "pettingCount") == 1 && Json.Text(petted, "bubbleTitle") == "角色碎碎念", "character click gives petting feedback");
+                }
+                if (step == 4)
+                {
+                    string other = Path.Combine(evidence, "other-chat-completed"); pet.SaveEvidence(other);
+                    var state = Json.Parse(File.ReadAllText(Path.Combine(other, "live-check.json")));
+                    Check(Json.Get(state, "running").Equals(true) && Json.Text(state, "trackedThreadId") == ThreadId, "other chat completion keeps the active chat selected");
+                    Check(Json.Text(state, "lastCompletedThreadId") == "" && Json.Text(state, "bubbleTitle") != "本轮工作结束啦" && Json.Number(state, "stateFrame") != 3, "other chat cannot display a completion bubble or pose over active work");
                 }
                 if (step == 2)
                 {
+                    string interaction = Path.Combine(evidence, "petting"); pet.SaveEvidence(interaction);
+                    var petted = Json.Parse(File.ReadAllText(Path.Combine(interaction, "live-check.json")));
+                    Check(Json.Number(petted, "pettingCount") == 1 && Json.Text(petted, "bubbleTitle") == "角色碎碎念", "character click gives feedback after the double-click window");
                     pet.SetClickThrough(true);
                     string passthrough = Path.Combine(evidence, "click-through"); pet.SaveEvidence(passthrough);
                     var state = Json.Parse(File.ReadAllText(Path.Combine(passthrough, "live-check.json")));
@@ -108,9 +118,16 @@ public static class UiIntegration
                 }
                 if (step == 8)
                 {
+                    string finalizing = Path.Combine(evidence, "finalizing"); pet.SaveEvidence(finalizing);
+                    var state = Json.Parse(File.ReadAllText(Path.Combine(finalizing, "live-check.json")));
+                    Check(Json.Get(state, "finishing").Equals(true) && Json.Get(state, "running").Equals(true) && Json.Number(state, "stateFrame") != 3, "real UI stays working while final output settles");
+                    Check(Json.Text(state, "lastCompletedThreadId") == "" && Json.Text(state, "bubbleTitle") != "本轮工作结束啦", "no notification is dispatched during finalization");
+                }
+                if (step == 10)
+                {
                     string completed = Path.Combine(evidence, "completed"); pet.SaveEvidence(completed);
                     var state = Json.Parse(File.ReadAllText(Path.Combine(completed, "live-check.json")));
-                    Check(Json.Get(state, "running").Equals(false) && Json.Number(state, "spriteFrame") == 3, "completion event selects celebration sprite");
+                    Check(Json.Get(state, "running").Equals(false) && Json.Number(state, "stateFrame") == 3, "completion event selects celebration state beneath the transient action");
                     Check(Json.Text(state, "bubbleTitle") == "本轮工作结束啦", "completion bubble is actually displayed");
                     Check(Json.Get(state, "bubbleVisible").Equals(true) && Json.Text(state, "bubbleText") == "回来看看结果吧。", "completion overrides folding with a short status message");
                     Check(Json.Text(state, "lastCompletedThreadId") == ThreadId, "real notification callback was dispatched");

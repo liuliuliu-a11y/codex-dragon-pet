@@ -1,4 +1,4 @@
-param([switch]$Test, [switch]$UiTest, [string]$OutputDirectory, [ValidateSet('anycpu','x86','x64')][string]$Platform = 'x86')
+param([switch]$Test, [switch]$UiTest, [switch]$ManualUiTest, [string]$OutputDirectory, [string]$VerificationDirectory, [ValidateSet('anycpu','x86','x64')][string]$Platform = 'x86')
 $ErrorActionPreference = 'Stop'
 $petRoot = $PSScriptRoot
 $framework = Join-Path $env:WINDIR 'Microsoft.NET/Framework64/v4.0.30319'
@@ -12,7 +12,7 @@ if (-not (Test-Path -LiteralPath $petIcon) -or (Get-Item -LiteralPath (Join-Path
 }
 $references = @('System.dll','System.Core.dll','System.Web.Extensions.dll','System.Drawing.dll','System.Windows.Forms.dll','System.Xaml.dll') | ForEach-Object { '/r:' + (Join-Path $framework $_) }
 $references += @('WindowsBase.dll','PresentationCore.dll','PresentationFramework.dll') | ForEach-Object { '/r:' + (Join-Path (Join-Path $framework 'WPF') $_) }
-$sources = @('State.cs','Monitor.cs','NativeWindow.cs','Companion.cs','App.cs') | ForEach-Object { Join-Path (Join-Path $petRoot 'src') $_ }
+$sources = @('State.cs','Monitor.cs','NativeWindow.cs','LayeredDragonRig.cs','LayeredPet.cs','PetActions.cs','Companion.cs','App.cs') | ForEach-Object { Join-Path (Join-Path $petRoot 'src') $_ }
 & $compiler /nologo /target:winexe /optimize+ ('/platform:' + $Platform) ('/win32icon:' + $petIcon) '/codepage:65001' ('/out:' + (Join-Path $petBin 'CodexDragonPet.exe')) @references @sources
 if ($LASTEXITCODE -ne 0) { throw 'Build failed.' }
 & $compiler /nologo /target:winexe /optimize+ ('/platform:' + $Platform) ('/win32icon:' + $petIcon) ('/out:' + (Join-Path $petBin 'CodexPetWatcher.exe')) /r:System.dll /r:System.Core.dll (Join-Path $petRoot 'src/CodexWatcher.cs')
@@ -21,17 +21,34 @@ Copy-Item -LiteralPath (Join-Path $petRoot 'assets') -Destination $petBin -Recur
 Copy-Item -LiteralPath (Join-Path $petRoot 'CodexDragonPet.exe.config') -Destination $petBin -Force
 Copy-Item -LiteralPath (Join-Path $petRoot 'CodexDragonPet.exe.config') -Destination (Join-Path $petBin 'CodexPetWatcher.exe.config') -Force
 if ($Test) {
-    $tests = @((Join-Path $petRoot 'src/State.cs'),(Join-Path $petRoot 'src/Monitor.cs'),(Join-Path $petRoot 'tests/Tests.cs'))
-    & $compiler /nologo /target:exe /optimize+ ('/platform:' + $Platform) '/codepage:65001' ('/out:' + (Join-Path $petBin 'PetTests.exe')) @references @tests
+    $tests = @($sources) + (Join-Path $petRoot 'tests/Tests.cs')
+    & $compiler /nologo /target:exe /main:Tests /optimize+ ('/platform:' + $Platform) '/codepage:65001' ('/out:' + (Join-Path $petBin 'PetTests.exe')) @references @tests
     if ($LASTEXITCODE -ne 0) { throw 'Test build failed.' }
     & (Join-Path $petBin 'PetTests.exe')
     if ($LASTEXITCODE -ne 0) { throw 'Tests failed.' }
 }
 if ($UiTest) {
+    $layeredTests = @($sources) + (Join-Path $petRoot 'tests/LayeredUiIntegration.cs')
+    & $compiler /nologo /target:exe /main:LayeredUiIntegration /optimize+ ('/platform:' + $Platform) '/codepage:65001' ('/out:' + (Join-Path $petBin 'PetLayeredUiTests.exe')) @references @layeredTests
+    if ($LASTEXITCODE -ne 0) { throw 'Layered UI test build failed.' }
+    $uiEvidence = if ($VerificationDirectory) { [IO.Path]::GetFullPath($VerificationDirectory) } else { Join-Path $petRoot 'verification/ui-integration' }
+    & (Join-Path $petBin 'PetLayeredUiTests.exe') (Join-Path $uiEvidence 'layered')
+    if ($LASTEXITCODE -ne 0) { throw 'Layered UI integration failed.' }
     $uiTests = @($sources) + (Join-Path $petRoot 'tests/UiIntegration.cs')
     & $compiler /nologo /target:exe /main:UiIntegration /optimize+ ('/platform:' + $Platform) '/codepage:65001' ('/out:' + (Join-Path $petBin 'PetUiTests.exe')) @references @uiTests
     if ($LASTEXITCODE -ne 0) { throw 'UI test build failed.' }
-    & (Join-Path $petBin 'PetUiTests.exe') (Join-Path $petRoot 'verification/ui-integration')
+    $uiEvidence = if ($VerificationDirectory) { [IO.Path]::GetFullPath($VerificationDirectory) } else { Join-Path $petRoot 'verification/ui-integration' }
+    & (Join-Path $petBin 'PetUiTests.exe') $uiEvidence
     if ($LASTEXITCODE -ne 0) { throw 'UI integration failed.' }
+    $actionTests = @($sources) + (Join-Path $petRoot 'tests/ActionUiIntegration.cs')
+    & $compiler /nologo /target:exe /main:ActionUiIntegration /optimize+ ('/platform:' + $Platform) '/codepage:65001' ('/out:' + (Join-Path $petBin 'PetActionUiTests.exe')) @references @actionTests
+    if ($LASTEXITCODE -ne 0) { throw 'Action UI test build failed.' }
+    & (Join-Path $petBin 'PetActionUiTests.exe') (Join-Path $uiEvidence 'actions')
+    if ($LASTEXITCODE -ne 0) { throw 'Action UI integration failed.' }
+}
+if ($ManualUiTest) {
+    $manualTests = @($sources) + (Join-Path $petRoot 'tests/ManualActionUi.cs')
+    & $compiler /nologo /target:winexe /main:ManualActionUi /optimize+ ('/platform:' + $Platform) '/codepage:65001' ('/out:' + (Join-Path $petBin 'PetManualUiTests.exe')) @references @manualTests
+    if ($LASTEXITCODE -ne 0) { throw 'Manual UI test build failed.' }
 }
 Write-Output ('Built: ' + (Join-Path $petBin 'CodexDragonPet.exe'))

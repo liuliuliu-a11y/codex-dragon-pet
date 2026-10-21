@@ -23,3 +23,6 @@ diagnostics.json
 *.zip
 *.exe
 assets/dragon-sprites.png
+samples/LayeredPet/assets/
+samples/LayeredPet/source/*-grid.jpg
+samples/LayeredPet/source/*-check.jpg

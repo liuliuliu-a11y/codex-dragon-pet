@@ -61,6 +61,7 @@ namespace CodexDragon
                         string evidence = args[1];
                         window.Loaded += delegate
                         {
+                            if (args.Contains("--verify-tea")) window.DrinkTea();
                             var check = new DispatcherTimer { Interval = TimeSpan.FromSeconds(4) };
                             check.Tick += delegate { check.Stop(); window.SaveEvidence(evidence); }; check.Start();
                         };
@@ -136,6 +137,7 @@ namespace CodexDragon
     {
         private readonly Settings settings;
         private readonly Grid scene;
+        private readonly Grid character;
         private readonly Image sprite;
         private readonly Border bubble;
         private readonly TextBlock bubbleTitle, bubbleText, statusText, quotaText;
@@ -185,12 +187,16 @@ namespace CodexDragon
 
             var shadow = new Ellipse { Width = 128, Height = 11, Fill = Ui.Brush("#187B668D"), HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Bottom, Margin = new Thickness(0, 0, 0, 49), IsHitTestVisible = false };
             scene.Children.Add(shadow);
-            var transform = new TransformGroup(); transform.Children.Add(tiltTransform); transform.Children.Add(floatTransform);
-            previousSprite = new Image { Source = sprites[0], Opacity = 0, IsHitTestVisible = false, Width = 258, Height = 258, Stretch = Stretch.Uniform, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Bottom, Margin = new Thickness(0, 0, 0, 48), RenderTransform = transform, RenderTransformOrigin = new System.Windows.Point(.5, .85) };
-            scene.Children.Add(previousSprite);
-            sprite = new Image { Name = "PetCharacter", Source = sprites[0], Width = 258, Height = 258, Stretch = Stretch.Uniform, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Bottom, Margin = new Thickness(0, 0, 0, 48), RenderTransform = transform, RenderTransformOrigin = new System.Windows.Point(.5, .85), Cursor = Cursors.Hand, ToolTip = "单击摸摸头 · 拖动调整位置 · 双击工作面板" };
+            var transform = new TransformGroup(); transform.Children.Add(actionScale); transform.Children.Add(tiltTransform); transform.Children.Add(floatTransform); transform.Children.Add(actionOffset);
+            character = new Grid { Name = "PetCharacterHost", Width = 258, Height = 258, Background = Brushes.Transparent, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Bottom, Margin = new Thickness(0, 0, 0, 48), RenderTransform = transform, RenderTransformOrigin = new System.Windows.Point(.5, .85), Cursor = Cursors.Hand, ToolTip = "单击摸摸头 · 拖动调整位置 · 双击工作面板" };
+            scene.Children.Add(character);
+            previousSprite = new Image { Source = sprites[0], Opacity = 0, IsHitTestVisible = false, Stretch = Stretch.Uniform };
+            character.Children.Add(previousSprite);
+            sprite = new Image { Name = "PetCharacter", Source = sprites[0], Stretch = Stretch.Uniform };
             RenderOptions.SetBitmapScalingMode(sprite, BitmapScalingMode.HighQuality);
-            scene.Children.Add(sprite);
+            character.Children.Add(sprite);
+            InitializeActions();
+            InitializeLayeredPet();
 
             var statusStack = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Center };
             statusText = Ui.Text("● 在这里陪你", 10, Ui.Ink); statusStack.Children.Add(statusText);
@@ -198,26 +204,27 @@ namespace CodexDragon
             var status = new Border { Name = "PetStatus", Child = statusStack, Padding = new Thickness(13, 7, 13, 7), CornerRadius = new CornerRadius(15), Background = Ui.Brush("#F5FFFDFF"), BorderBrush = Ui.Line, BorderThickness = new Thickness(1), VerticalAlignment = VerticalAlignment.Bottom, HorizontalAlignment = HorizontalAlignment.Center, Margin = new Thickness(0, 0, 0, 9), Cursor = Cursors.Hand, ToolTip = "打开工作与额度面板" };
             status.MouseLeftButtonUp += delegate { OpenDashboard(); }; scene.Children.Add(status);
 
-            sprite.MouseLeftButtonDown += delegate(object sender, MouseButtonEventArgs e)
+            character.MouseLeftButtonDown += delegate(object sender, MouseButtonEventArgs e)
             {
-                if (e.ClickCount == 2) { OpenDashboard(); e.Handled = true; return; }
                 down = e.GetPosition(this); dragging = false;
+                suppressClick = e.ClickCount == 2;
+                if (suppressClick) { clickTimer.Stop(); OpenDashboard(); e.Handled = true; }
             };
-            sprite.MouseMove += delegate(object sender, MouseEventArgs e)
+            character.MouseMove += delegate(object sender, MouseEventArgs e)
             {
                 if (e.LeftButton != MouseButtonState.Pressed || dragging) return;
                 var position = e.GetPosition(this);
                 if (Math.Abs(position.X - down.X) + Math.Abs(position.Y - down.Y) < 5) return;
-                dragging = true;
-                if (!settings.ReduceMotion) AnimateTilt(4, .15);
+                suppressClick = true; BeginPetDrag();
+                // DragMove starts at the current cursor; retain the movement that triggered it.
+                Left += position.X - down.X; Top += position.Y - down.Y;
                 try { DragMove(); } catch (InvalidOperationException) { }
-                if (!settings.ReduceMotion) AnimateTilt(0, .25);
-                ClampPosition(); SavePosition();
+                finally { EndPetDrag(); }
             };
-            sprite.MouseLeftButtonUp += delegate { if (!dragging) PetHead(); };
+            character.MouseLeftButtonUp += delegate { if (!dragging && !suppressClick) { clickTimer.Stop(); clickTimer.Start(); } };
             ContextMenu = MakeMenu();
             InitializeCompanion();
-            IsVisibleChanged += delegate { ApplyMotion(); };
+            IsVisibleChanged += delegate { ActionVisibilityChanged(); };
             Loaded += delegate { SetPosition(); };
             Closing += delegate { Cleanup(); };
 
@@ -255,7 +262,7 @@ namespace CodexDragon
                     if (lastQuotaRequest != DateTime.MinValue && quota != null && quota.Source == "Codex 聊天记录" && DateTime.UtcNow - quota.Updated < TimeSpan.FromSeconds(45)) lastQuotaRequest = DateTime.UtcNow;
                     else RefreshQuota();
                 }
-                ObserveProgress();
+                ObserveActionState(); ObserveProgress();
                 CheckThreshold(); RefreshView();
                 if (settings.SmallTalk && !settings.Quiet && DateTime.UtcNow > speechUntil && (selected == null || !selected.Running) && DateTime.UtcNow - lastTalk > TimeSpan.FromSeconds(100))
                 { Say("角色碎碎念", idleLines[random.Next(idleLines.Length)], 10); lastTalk = DateTime.UtcNow; }
@@ -281,9 +288,10 @@ namespace CodexDragon
         private void OnCompleted(Session session)
         {
             if (!settings.Notifications) return;
-            if (!String.IsNullOrEmpty(settings.PinnedThread) && session.Id != settings.PinnedThread) return;
+            // In automatic mode another chat finishing must not cover active work.
+            if (monitor.Select(settings.PinnedThread) != session || session.Running) return;
             lastCompletedId = session.Id;
-            Say("本轮工作结束啦", "回来看看结果吧。", 25); SetMood(Mood.Done); Wiggle();
+            Say("本轮工作结束啦", "回来看看结果吧。", 25); SetMood(Mood.Done); PlayAction(PetAction.Celebrate);
             if (settings.Sound && !settings.Quiet) SystemSounds.Asterisk.Play();
             if (tray != null && !settings.Quiet)
             {
@@ -311,7 +319,7 @@ namespace CodexDragon
             Mood mood = selected == null ? Mood.Idle : selected.Mood;
             var window = quota == null ? null : quota.Main;
             if (window != null && quota.Fresh && !window.Expired && window.Used >= 80 && (selected == null || !selected.Running)) mood = Mood.LowQuota;
-            if (DateTime.UtcNow < speechUntil && speechTitle == "本轮工作结束啦") mood = Mood.Done;
+            if (selected != null && selected.Running && speechTitle == "本轮工作结束啦") speechUntil = DateTime.MinValue;
             SetMood(mood);
             string stage = selected == null ? "待命中" : selected.Stage;
             statusText.Text = "● " + Ui.Short(stage, 12);
@@ -331,8 +339,12 @@ namespace CodexDragon
         }
         private void SetMood(Mood mood)
         {
+            bool stopped = mood == Mood.Stopped && displayMood != Mood.Stopped;
+            displayMood = mood;
+            if (stopped && !dragging) StopAction();
             int frame = mood == Mood.Working ? 1 : mood == Mood.Thinking ? 2 : mood == Mood.Done ? 3 : mood == Mood.Waiting ? 4 : mood == Mood.LowQuota || mood == Mood.Stopped ? 5 : 0;
-            if (frame == activeFrame) return;
+            if (action.Current != PetAction.None) { activeFrame = frame; RefreshLayeredPet(); return; }
+            if (frame == activeFrame) { RefreshLayeredPet(); return; }
             bool animate = activeFrame >= 0 && IsLoaded && IsVisible && !settings.ReduceMotion;
             previousSprite.Source = sprite.Source;
             sprite.Source = sprites[frame];
@@ -344,6 +356,7 @@ namespace CodexDragon
                 Timeline.SetDesiredFrameRate(fadeIn, 24); Timeline.SetDesiredFrameRate(fadeOut, 24);
                 sprite.BeginAnimation(UIElement.OpacityProperty, fadeIn); previousSprite.BeginAnimation(UIElement.OpacityProperty, fadeOut);
             }
+            ApplyMotion();
         }
         private void Say(string title, string text, int seconds)
         { speechTitle = title; speech = text; speechUntil = DateTime.UtcNow.AddSeconds(seconds); bubbleTitle.Text = title; bubbleText.Text = text; UpdateBubbleVisibility(); }
@@ -362,6 +375,10 @@ namespace CodexDragon
             var menu = new ContextMenu { FontFamily = new FontFamily("Microsoft YaHei UI"), FontSize = 13 };
             AddMenu(menu, "工作与额度面板", OpenDashboard);
             AddMenu(menu, "回到当前 Codex 聊天", OpenCodex);
+            menu.Items.Add(new Separator());
+            AddMenu(menu, "一起喝茶", DrinkTea);
+            AddMenu(menu, "伸个懒腰", delegate { PlayAction(PetAction.Stretch); });
+            AddMenu(menu, settings.DailyActions ? "暂停日常小动作" : "开启日常小动作", delegate { SetDailyActions(!settings.DailyActions); });
             menu.Items.Add(new Separator());
             AddMenu(menu, settings.ClickThrough ? "关闭鼠标穿透" : "开启鼠标穿透", delegate { SetClickThrough(!settings.ClickThrough); });
             AddMenu(menu, settings.Quiet ? "恢复日常陪伴" : "安静陪伴", delegate { SetQuiet(!settings.Quiet); });
@@ -385,6 +402,7 @@ namespace CodexDragon
             var menu = new Forms.ContextMenuStrip();
             menu.Items.Add("显示小龙", null, delegate { Dispatcher.BeginInvoke(new Action(delegate { Show(); })); });
             menu.Items.Add("工作与额度面板", null, delegate { Dispatcher.BeginInvoke(new Action(OpenDashboard)); });
+            menu.Items.Add("一起喝茶", null, delegate { Dispatcher.BeginInvoke(new Action(delegate { Show(); DrinkTea(); })); });
             trayClickThrough = new Forms.ToolStripMenuItem("鼠标穿透（取消勾选可恢复互动）") { Checked = settings.ClickThrough };
             trayClickThrough.Click += delegate { Dispatcher.BeginInvoke(new Action(delegate { SetClickThrough(!settings.ClickThrough); })); };
             menu.Items.Add(trayClickThrough);
@@ -427,7 +445,8 @@ namespace CodexDragon
             content.Children.Add(Ui.Text("账户额度 · 已用比例", 11, Ui.Muted));
             quotaPanel = new StackPanel { Margin = new Thickness(0, 8, 0, 8) }; content.Children.Add(quotaPanel);
             dashConnection = Ui.Text("", 10, Ui.Muted); dashConnection.Margin = new Thickness(0, 0, 0, 16); content.Children.Add(dashConnection);
-            var actions = new WrapPanel(); actions.Children.Add(Ui.Button("回到 Codex", OpenCodex)); actions.Children.Add(Ui.Button("刷新额度", RefreshQuota)); actions.Children.Add(Ui.Button("演示完成提醒", delegate { Say("演示 · 完成提醒", "叮！这是一条示例提醒，实际任务状态没有改变。", 12); SetMood(Mood.Done); Wiggle(); if (settings.Sound && !settings.Quiet) SystemSounds.Asterisk.Play(); if (tray != null && !settings.Quiet) tray.ShowBalloonTip(5000, "演示 · 完成提醒", "这是示例提醒，不代表实际任务已经完成。", Forms.ToolTipIcon.Info); })); content.Children.Add(actions);
+            var actions = new WrapPanel(); actions.Children.Add(Ui.Button("回到 Codex", OpenCodex)); actions.Children.Add(Ui.Button("刷新额度", RefreshQuota)); actions.Children.Add(Ui.Button("演示完成提醒", delegate { Say("演示 · 完成提醒", "叮！这是一条示例提醒，实际任务状态没有改变。", 12); PlayAction(PetAction.Celebrate); if (settings.Sound && !settings.Quiet) SystemSounds.Asterisk.Play(); if (tray != null && !settings.Quiet) tray.ShowBalloonTip(5000, "演示 · 完成提醒", "这是示例提醒，不代表实际任务已经完成。", Forms.ToolTipIcon.Info); })); content.Children.Add(actions);
+            var interactions = new WrapPanel(); interactions.Children.Add(Ui.Button("一起喝茶", DrinkTea)); interactions.Children.Add(Ui.Button("伸个懒腰", delegate { PlayAction(PetAction.Stretch); })); content.Children.Add(interactions);
             var options = new WrapPanel { Margin = new Thickness(0, 9, 0, 15) };
             AddCheck(options, "提示音", settings.Sound, delegate(bool value) { settings.Sound = value; });
             AddCheck(options, "完成提醒", settings.Notifications, delegate(bool value) { settings.Notifications = value; });
@@ -509,6 +528,9 @@ namespace CodexDragon
         {
             if (closed) return; closed = true;
             if (timer != null) timer.Stop();
+            if (actionTimer != null) actionTimer.Stop();
+            if (clickTimer != null) clickTimer.Stop();
+            if (layeredTimer != null) layeredTimer.Stop();
             if (monitor != null) monitor.Dispose();
             AccountReader.CancelPending();
             if (tray != null) { tray.Visible = false; tray.Dispose(); }
@@ -557,7 +579,13 @@ namespace CodexDragon
                 topmost = Topmost, width = ActualWidth, height = ActualHeight,
                 connection = monitor.Connection, trackedThreadId = selected == null ? "" : selected.Id,
                 stage = selected == null ? "" : selected.Stage, running = selected != null && selected.Running,
+                finishing = selected != null && selected.Finishing,
                 spriteFrame = Array.IndexOf(sprites, sprite.Source), bubbleTitle = bubbleTitle.Text,
+                localVersion = LocalVersion, stateFrame = activeFrame, action = action.Current.ToString(), actionFrame = action.Frame,
+                layeredVisible = layeredView.Visibility == Visibility.Visible, layeredTimerRunning = layeredTimer.IsEnabled,
+                layeredUpdates = layeredUpdates, layeredStage = layeredRig.Current.Stage, layeredCupOpacity = layeredRig.Current.CupOpacity,
+                teaTimeSeconds = action.Current == PetAction.Tea ? actionClock.Elapsed.TotalSeconds : -1,
+                actionTimerRunning = actionTimer != null && actionTimer.IsEnabled, dailyActions = settings.DailyActions,
                 bubbleText = bubbleText.Text, lastCompletedThreadId = lastCompletedId,
                 bubbleVisible = bubble.Visibility == Visibility.Visible, pettingCount = pettingCount,
                 clickThrough = settings.ClickThrough, nativeClickThrough = NativeWindow.IsClickThrough(new System.Windows.Interop.WindowInteropHelper(this).Handle),

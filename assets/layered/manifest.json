@@ -1,0 +1,25 @@
+{
+  "original_source": "assets/dragon-sprites-clean.png#idle",
+  "source_sprite_sheet_sha256": "bc9495699d19557b05245d71788b0ccbf3f2808ecdbe81f461ea54e27e4b79f2",
+  "original_sha256": "d4c44d6072d48a09a4345604b551db1ac043f21517124a44c2e5d69b8ad21981",
+  "original_face_retained_pixel_exact": true,
+  "face_region_xyxy": [
+    183,
+    165,
+    323,
+    250
+  ],
+  "new_artwork": "Generated torso repair, arm/sleeve/hand parts, porcelain cup and closed-eyelid texture",
+  "animation": "Continuous mesh deformation and shoulder/elbow/wrist rig; no full-character pose slideshow",
+  "generator": "Built-in image_gen; no local model downloads",
+  "parts": [
+    "arm-mask.png",
+    "body.png",
+    "cup.png",
+    "eyelids.png",
+    "left-arm.png",
+    "original.png",
+    "rest-arms.png",
+    "right-arm.png"
+  ]
+}

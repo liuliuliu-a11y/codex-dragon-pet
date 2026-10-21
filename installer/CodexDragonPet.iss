@@ -1,5 +1,5 @@
 #ifndef AppVersion
-  #define AppVersion "0.2.2"
+  #define AppVersion "0.4.0"
 #endif
 #ifndef PayloadDir
   #error PayloadDir must point to a prepared binary package
@@ -58,6 +58,9 @@ Source: "{#PayloadDir}\bin\CodexDragonPet.exe.config"; DestDir: "{app}\bin"; Fla
 Source: "{#PayloadDir}\bin\CodexPetWatcher.exe"; DestDir: "{app}\bin"; Flags: ignoreversion
 Source: "{#PayloadDir}\bin\CodexPetWatcher.exe.config"; DestDir: "{app}\bin"; Flags: ignoreversion
 Source: "{#PayloadDir}\bin\assets\dragon-sprites-clean.png"; DestDir: "{app}\bin\assets"; Flags: ignoreversion
+Source: "{#PayloadDir}\bin\assets\dragon-actions.png"; DestDir: "{app}\bin\assets"; Flags: ignoreversion
+Source: "{#PayloadDir}\bin\assets\layered\*.png"; DestDir: "{app}\bin\assets\layered"; Flags: ignoreversion
+Source: "{#PayloadDir}\bin\assets\layered\manifest.json"; DestDir: "{app}\bin\assets\layered"; Flags: ignoreversion
 Source: "{#PayloadDir}\bin\assets\tray.ico"; DestDir: "{app}\bin\assets"; Flags: ignoreversion
 Source: "{#PayloadDir}\README.md"; DestDir: "{app}"; Flags: ignoreversion
 Source: "{#PayloadDir}\DEPENDENCIES.md"; DestDir: "{app}"; Flags: ignoreversion

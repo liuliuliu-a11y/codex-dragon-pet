@@ -4,6 +4,8 @@
 
 ## 直接安装
 
+0.4.0 本次提供免安装 ZIP 与校验清单，未附 Setup.exe。下载 `codex-dragon-pet-0.4.0.zip`，按下方“免安装 ZIP”操作；已安装用户可按 README 的覆盖升级步骤保留原自动联动入口。以下安装向导说明适用于带 Setup.exe 的发布，历史 0.2.2 安装器不包含 0.4.0 新功能。
+
 1. 打开 [最新 GitHub Release](https://github.com/liuliuliu-a11y/codex-dragon-pet/releases/latest)。
 2. 下载 `CodexDragonPet-Setup-版本.exe` 和 `SHA256SUMS.txt`。`Source code.zip` 是源码，不是免编译安装包。
 3. 在 PowerShell 中用 `Get-FileHash ./CodexDragonPet-Setup-版本.exe -Algorithm SHA256` 计算哈希，与清单中的对应行比较。

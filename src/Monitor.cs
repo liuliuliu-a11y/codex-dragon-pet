@@ -17,6 +17,7 @@ namespace CodexDragon
         private readonly Decoder decoder = new UTF8Encoding(false, false).GetDecoder();
         private readonly StringBuilder pending = new StringBuilder();
         private bool skipping;
+        public bool HasPendingRecord { get { return skipping || pending.Length > 0; } }
         public List<string> Read(string file, bool first, byte[] bytes = null, char[] chars = null)
         {
             var lines = new List<string>();
@@ -57,15 +58,25 @@ namespace CodexDragon
         private readonly string root;
         private readonly Dictionary<string, LogCursor> cursors = new Dictionary<string, LogCursor>(StringComparer.OrdinalIgnoreCase);
         private readonly ConcurrentDictionary<string, byte> dirty = new ConcurrentDictionary<string, byte>(StringComparer.OrdinalIgnoreCase);
+        private sealed class Completion
+        {
+            public Session Session;
+            public string TurnId;
+            public DateTime QuietSince;
+            public long Length = -1;
+        }
+        private readonly Dictionary<string, Completion> pending = new Dictionary<string, Completion>(StringComparer.OrdinalIgnoreCase);
+        public static readonly TimeSpan CompletionQuietPeriod = TimeSpan.FromSeconds(3);
+        private readonly Func<DateTime> utcNow;
         private FileSystemWatcher watcher;
         private DateTime lastScan = DateTime.MinValue;
-        private readonly DateTime boot = DateTime.UtcNow;
+        private readonly DateTime boot;
         private readonly byte[] readBytes = new byte[32768];
         private readonly char[] readChars = new char[32768];
         private bool initial = true;
-        public SessionMonitor(string sessionsRoot)
+        public SessionMonitor(string sessionsRoot, Func<DateTime> clock = null)
         {
-            root = sessionsRoot;
+            root = sessionsRoot; utcNow = clock ?? delegate { return DateTime.UtcNow; }; boot = utcNow();
             if (Directory.Exists(root))
             {
                 watcher = new FileSystemWatcher(root, "*.jsonl") { IncludeSubdirectories = true, NotifyFilter = NotifyFilters.LastWrite | NotifyFilters.FileName | NotifyFilters.Size };
@@ -78,12 +89,13 @@ namespace CodexDragon
         public void Poll()
         {
             if (!Directory.Exists(root)) { Connection = "尚未发现本机聊天记录"; return; }
-            if (DateTime.UtcNow - lastScan > TimeSpan.FromSeconds(20))
+            DateTime now = utcNow();
+            if (now - lastScan > TimeSpan.FromSeconds(20))
             {
                 try
                 {
                     foreach (var file in new DirectoryInfo(root).EnumerateFiles("*.jsonl", SearchOption.AllDirectories).OrderByDescending(f => f.LastWriteTimeUtc).Take(24)) dirty[file.FullName] = 0;
-                    lastScan = DateTime.UtcNow;
+                    lastScan = now;
                 }
                 catch (IOException) { Connection = "聊天记录暂时不可读，正在重试"; }
                 catch (UnauthorizedAccessException) { Connection = "聊天记录访问受限"; }
@@ -107,7 +119,7 @@ namespace CodexDragon
                             DateTime at = Json.Time(Json.Text(record ?? Json.Map(null), "timestamp"), DateTime.MinValue);
                             bool history = initial || truncated || (fresh && at < boot);
                             bool done = session.Apply(record, history, SetQuota);
-                            if (done && !session.IsChild && Completed != null) Completed(session);
+                            if (done) pending[file] = new Completion { Session = session, TurnId = session.TurnId, QuietSince = now };
                         }
                         catch (ArgumentException) { }
                         catch (InvalidOperationException) { }
@@ -117,12 +129,40 @@ namespace CodexDragon
                 catch (IOException) { }
                 catch (UnauthorizedAccessException) { }
             }
+            ConfirmCompletions(now);
             initial = false;
             if (Sessions.Count > 64)
             {
-                foreach (var file in Sessions.Values.OrderByDescending(s => s.Updated).Skip(64).Select(s => s.FilePath).ToArray()) { Sessions.Remove(file); cursors.Remove(file); }
+                foreach (var file in Sessions.Values.OrderByDescending(s => s.Updated).Skip(64).Select(s => s.FilePath).ToArray()) { Sessions.Remove(file); cursors.Remove(file); pending.Remove(file); }
             }
             Connection = Sessions.Count > 0 ? "已连接本机 Codex" : "等待 Codex 开始聊天";
+        }
+        private void ConfirmCompletions(DateTime now)
+        {
+            var ready = new List<Session>();
+            foreach (var pair in pending.ToArray())
+            {
+                Session current; Completion completion = pair.Value;
+                if (!Sessions.TryGetValue(pair.Key, out current) || current != completion.Session || !current.Finishing || current.TurnId != completion.TurnId)
+                { pending.Remove(pair.Key); continue; }
+                try
+                {
+                    long length = new FileInfo(pair.Key).Length;
+                    if (length != completion.Length || cursors[pair.Key].HasPendingRecord || cursors[pair.Key].Position != length)
+                    {
+                        completion.Length = length; completion.QuietSince = now;
+                        // Retry unread data even if a filesystem notification was missed.
+                        if (cursors[pair.Key].Position != length) dirty[pair.Key] = 0;
+                        continue;
+                    }
+                    if (now - completion.QuietSince < CompletionQuietPeriod || !current.ConfirmCompletion()) continue;
+                    pending.Remove(pair.Key); ready.Add(current);
+                }
+                catch (IOException) { completion.QuietSince = now; }
+                catch (UnauthorizedAccessException) { completion.QuietSince = now; }
+            }
+            // All sessions must have their final state before a notification chooses its chat.
+            foreach (Session session in ready) if (!session.IsChild && Completed != null) Completed(session);
         }
         private static void ReadMetadata(string file, Session session)
         {
@@ -149,7 +189,7 @@ namespace CodexDragon
             var sessions = Sessions.Values.Where(s => !s.IsChild);
             if (!String.IsNullOrEmpty(pinned)) return sessions.FirstOrDefault(s => s.Id == pinned);
             // An abandoned old turn must not hide a chat that is active now.
-            return sessions.OrderByDescending(s => s.Running && DateTime.UtcNow - s.Updated < TimeSpan.FromMinutes(10)).ThenByDescending(s => s.Updated).FirstOrDefault();
+            return sessions.OrderByDescending(s => s.Running && utcNow() - s.Updated < TimeSpan.FromMinutes(10)).ThenByDescending(s => s.Updated).FirstOrDefault();
         }
         public void Dispose() { if (watcher != null) watcher.Dispose(); }
     }

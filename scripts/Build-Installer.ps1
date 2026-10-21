@@ -1,4 +1,4 @@
-param([string]$Version = '0.2.2', [string]$CompilerPath, [string]$OutputDirectory)
+param([string]$Version = '0.4.0', [string]$CompilerPath, [string]$OutputDirectory)
 $ErrorActionPreference = 'Stop'
 $projectRoot = Split-Path -Parent $PSScriptRoot
 if ($Version -notmatch '^\d+\.\d+\.\d+$') { throw 'Version must use the format major.minor.patch.' }
