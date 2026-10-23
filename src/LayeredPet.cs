@@ -19,10 +19,10 @@ namespace CodexDragon
         private readonly Stopwatch layeredClock = new Stopwatch();
         private double layeredLastTick, layeredTime;
         private long layeredUpdates;
+        private double layeredLook, layeredLookTarget;
         private bool LayeredRequested
         {
-            get { return action.Current == PetAction.Tea || action.Current == PetAction.Blink ||
-                (action.Current == PetAction.None && (displayMood == Mood.Idle || displayMood == Mood.Done)); }
+            get { return true; }
         }
 
         private void InitializeLayeredPet()
@@ -49,7 +49,7 @@ namespace CodexDragon
             layeredView.Visibility = show ? Visibility.Visible : Visibility.Collapsed;
             sprite.Visibility = previousSprite.Visibility = show ? Visibility.Hidden : Visibility.Visible;
             bool animate = show && IsVisible && !closed && !settings.ReduceMotion &&
-                (action.Current == PetAction.Tea || action.Current == PetAction.Blink || (settings.DailyActions && !settings.Quiet));
+                (action.Current != PetAction.None || (settings.DailyActions && !settings.Quiet));
             if (animate)
             {
                 if (!layeredTimer.IsEnabled)
@@ -62,7 +62,9 @@ namespace CodexDragon
             else
             {
                 layeredTimer.Stop(); layeredClock.Stop();
-                if (show) { layeredRig.Update(0, -1, false); layeredSteam.InvalidateVisual(); }
+                layeredLook = layeredLookTarget = 0;
+                if (show) { layeredRig.Update(0, -1, false, mood: activeFrame, snap: true); layeredSteam.InvalidateVisual(); }
+                interactionBubbleOffset.Y = 0;
             }
         }
 
@@ -70,14 +72,32 @@ namespace CodexDragon
         {
             double now = layeredClock.Elapsed.TotalSeconds;
             if (now - layeredLastTick < 1.0 / 70) return;
-            layeredTime += now - layeredLastTick; layeredLastTick = now;
+            double delta = now - layeredLastTick;
+            layeredTime += delta; layeredLastTick = now;
+            layeredLook += (layeredLookTarget - layeredLook) * (1 - Math.Exp(-delta * 9));
             UpdateLayeredPose();
         }
         private void UpdateLayeredPose()
         {
-            double teaTime = action.Current == PetAction.Tea ? actionClock.Elapsed.TotalSeconds : -1;
-            double blink = action.Current == PetAction.Blink ? Math.Pow(Math.Sin(action.Progress * Math.PI), 2) : -1;
-            layeredRig.Update(layeredTime, teaTime, false, blink);
+            double elapsed = action.Current == PetAction.None ? 0 : action.Elapsed + Math.Max(0, actionClock.Elapsed.TotalMilliseconds - actionLastTick);
+            double progress = action.Duration == 0 ? 0 : Math.Min(1, elapsed / action.Duration);
+            double teaTime = action.Current == PetAction.Tea ? elapsed / 1000 : -1;
+            double blink = action.Current == PetAction.Blink ? Math.Pow(Math.Sin(progress * Math.PI), 2) : -1;
+            MotionKind motion = MotionKind.Idle;
+            switch (action.Current)
+            {
+                case PetAction.Pet: motion = MotionKind.Pet; break;
+                case PetAction.Hop: motion = MotionKind.Hop; break;
+                case PetAction.Stretch: motion = MotionKind.Stretch; break;
+                case PetAction.Drag: motion = MotionKind.Drag; break;
+                case PetAction.Land: motion = MotionKind.Land; break;
+                case PetAction.Celebrate: motion = MotionKind.Celebrate; break;
+                case PetAction.Greet: motion = MotionKind.Greet; break;
+            }
+            layeredRig.Update(layeredTime, teaTime, false, blink, layeredLook * 4, motion: motion,
+                progress: progress, seconds: elapsed / 1000, mood: activeFrame);
+            // Lift the bubble along with upward movement, including interruption blends.
+            interactionBubbleOffset.Y = Math.Min(0, layeredRig.Current.OffsetY * .8);
             layeredSteam.InvalidateVisual(); layeredUpdates++;
         }
     }

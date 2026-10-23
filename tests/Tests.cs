@@ -103,11 +103,11 @@ public static class Tests
         Check(playback.Elapsed == 0 && playback.Frame == -1, "tea releases the state sprite at its end");
         playback.Start(PetAction.Tea); playback.Advance(1700);
         Check(!playback.Start(PetAction.Blink) && playback.Current == PetAction.Tea, "automatic idle cannot interrupt drinking");
-        Check(playback.Start(PetAction.Celebrate) && playback.Frame >= 20, "task completion interrupts tea with celebration");
+        Check(playback.Start(PetAction.Celebrate) && playback.Frame == -1, "task completion interrupts tea with continuous celebration");
         Check(!playback.Start(PetAction.Tea), "manual tea does not hide a task completion celebration");
         Check(playback.Start(PetAction.Drag) && playback.CelebrationPending, "drag responds immediately and retains interrupted celebration");
         playback.Advance(60000);
-        Check(playback.Current == PetAction.Drag && playback.Frame >= 16 && playback.Frame <= 17, "drag keeps looping after a long hold");
+        Check(playback.Current == PetAction.Drag && playback.Frame == -1, "continuous drag stays active after a long hold");
         Check(!playback.Start(PetAction.Celebrate) && playback.CelebrationPending, "completion during dragging queues one celebration");
         Check(!playback.Start(PetAction.Tea), "tea cannot override a live drag");
         playback.Start(PetAction.Land); playback.Advance(500);
@@ -121,6 +121,19 @@ public static class Tests
         Check(playback.Current == PetAction.None, "blink finishes without leaving the eyes closed");
         playback.Start(PetAction.Stretch); playback.Advance(3000);
         Check(playback.Current == PetAction.None, "stretch and yawn release their artwork after playback");
+        playback.Start(PetAction.Pet); playback.Advance(700);
+        Check(playback.Current == PetAction.Pet && playback.Frame == -1, "petting uses the live rig rather than a replacement sprite");
+        Check(!playback.Start(PetAction.Hop), "repeated interactions do not restart an active gesture");
+        playback.Advance(700);
+        Check(playback.Current == PetAction.None, "petting releases pose ownership after its full gesture");
+        playback.Start(PetAction.Hop); playback.Advance(1100);
+        Check(playback.Current == PetAction.None, "hop completes and restores the state pose");
+        playback.Start(PetAction.Tea);
+        Check(!playback.Start(PetAction.Pet) && !playback.Start(PetAction.Hop), "touch gestures leave a tea sequence intact");
+        playback.Cancel(); playback.Start(PetAction.Pet); playback.Start(PetAction.Drag);
+        Check(playback.Current == PetAction.Drag, "drag takes priority over petting");
+        playback.Cancel(); playback.Start(PetAction.Hop); playback.Start(PetAction.Celebrate);
+        Check(playback.Current == PetAction.Celebrate, "task completion takes priority over a manual hop");
         var oldSettings = new System.Web.Script.Serialization.JavaScriptSerializer().Deserialize<Settings>("{\"Sound\":false,\"Quiet\":true,\"Scale\":1.25,\"PinnedThread\":\"existing-thread\"}");
         Check(oldSettings.DailyActions && !oldSettings.Sound && oldSettings.Quiet && oldSettings.Scale == 1.25 && oldSettings.PinnedThread == "existing-thread", "old settings retain preferences and receive the daily-action default");
     }

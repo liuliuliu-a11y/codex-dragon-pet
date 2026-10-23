@@ -64,7 +64,7 @@ public static class ActionUiIntegration
             new Step(4300, delegate { save("tea-restored"); Check(pet.VerificationAction == PetAction.None && pet.VerificationState == 1, "tea restores the current work state after putting away the cup"); }),
             new Step(4400, delegate { pet.DrinkTea(); File.AppendAllText(file, Record("{\"type\":\"task_complete\",\"turn_id\":\"tea-turn\",\"last_agent_message\":\"Tea result\"}"), new UTF8Encoding(false)); }),
             new Step(5600, delegate { save("completion-interrupts-tea"); Check(pet.VerificationAction == PetAction.Celebrate, "actual completion event interrupts tea with celebration"); }, delegate { return pet.VerificationAction == PetAction.Celebrate; }),
-            new Step(7200, delegate { Check(pet.VerificationAction == PetAction.None && pet.VerificationState == 3, "celebration returns to the completed state"); }),
+            new Step(7200, delegate { Check(pet.VerificationAction == PetAction.None && pet.VerificationState == 3, "celebration returns to the completed state"); }, delegate { return pet.VerificationAction == PetAction.None; }),
             new Step(7300, delegate { pet.DrinkTea(); File.AppendAllText(file, Record("{\"type\":\"task_started\",\"turn_id\":\"drag-turn\"}") + work, new UTF8Encoding(false)); }),
             new Step(8600, delegate { save("new-task"); Check(pet.VerificationAction == PetAction.None && pet.VerificationState == 1, "a new task cancels tea and clears the previous completion pose"); }),
             new Step(8700, delegate { pet.BeginPetDrag(); }),

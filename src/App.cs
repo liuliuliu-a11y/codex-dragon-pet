@@ -168,7 +168,7 @@ namespace CodexDragon
         public PetWindow(bool live)
         {
             settings = live ? Settings.Load() : new Settings();
-            settings.Scale = Math.Max(.65, Math.Min(1.5, settings.Scale));
+            settings.Scale = Math.Max(.4, Math.Min(1.5, settings.Scale));
             Title = "Codex 小龙 · 桌面伙伴"; WindowStyle = WindowStyle.None; ResizeMode = ResizeMode.NoResize;
             AllowsTransparency = true; Background = Brushes.Transparent; ShowInTaskbar = false; ShowActivated = false;
             Topmost = settings.Topmost; Width = 330 * settings.Scale; Height = 438 * settings.Scale;
@@ -184,6 +184,7 @@ namespace CodexDragon
             bubble = new Border { Child = bubbleStack, Width = 292, Padding = new Thickness(15, 11, 15, 12), CornerRadius = new CornerRadius(17, 17, 5, 17), Background = Ui.Brush("#FAFFFDFF"), BorderBrush = Ui.Line, BorderThickness = new Thickness(1), VerticalAlignment = VerticalAlignment.Bottom, HorizontalAlignment = HorizontalAlignment.Center, Margin = new Thickness(0, 0, 304, 0) };
             // Anchor the bubble above the character without covering her face.
             bubble.Margin = new Thickness(0, 0, 0, 300); scene.Children.Add(bubble);
+            bubble.RenderTransform = interactionBubbleOffset;
 
             var shadow = new Ellipse { Width = 128, Height = 11, Fill = Ui.Brush("#187B668D"), HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Bottom, Margin = new Thickness(0, 0, 0, 49), IsHitTestVisible = false };
             scene.Children.Add(shadow);
@@ -377,6 +378,9 @@ namespace CodexDragon
             AddMenu(menu, "回到当前 Codex 聊天", OpenCodex);
             menu.Items.Add(new Separator());
             AddMenu(menu, "一起喝茶", DrinkTea);
+            AddMenu(menu, "摸摸头", PetHead);
+            AddMenu(menu, "点头打招呼", Greet);
+            AddMenu(menu, "开心跳一下", HappyHop);
             AddMenu(menu, "伸个懒腰", delegate { PlayAction(PetAction.Stretch); });
             AddMenu(menu, settings.DailyActions ? "暂停日常小动作" : "开启日常小动作", delegate { SetDailyActions(!settings.DailyActions); });
             menu.Items.Add(new Separator());
@@ -386,7 +390,7 @@ namespace CodexDragon
             AddMenu(menu, settings.Sound ? "关闭提示音" : "开启提示音", delegate { settings.Sound = !settings.Sound; Persist(); ContextMenu = MakeMenu(); });
             AddMenu(menu, settings.Topmost ? "取消置顶" : "置顶显示", delegate { settings.Topmost = !settings.Topmost; Topmost = settings.Topmost; Persist(); ContextMenu = MakeMenu(); });
             var sizes = new MenuItem { Header = "调整大小" };
-            foreach (double size in new[] { .75, 1.0, 1.25, 1.5 })
+            foreach (double size in new[] { .4, .5, .6, .75, 1.0, 1.25, 1.5 })
             { double value = size; var item = new MenuItem { Header = (size * 100) + "%", IsChecked = Math.Abs(settings.Scale - size) < .01 }; item.Click += delegate { settings.Scale = value; Width = 330 * value; Height = 438 * value; ClampPosition(); SavePosition(); ContextMenu = MakeMenu(); }; sizes.Items.Add(item); }
             menu.Items.Add(sizes); menu.Items.Add(new Separator());
             AddMenu(menu, "收起到托盘", delegate { Hide(); });

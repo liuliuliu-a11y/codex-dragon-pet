@@ -1,4 +1,4 @@
-param([switch]$Test, [switch]$UiTest, [switch]$ManualUiTest, [string]$OutputDirectory, [string]$VerificationDirectory, [ValidateSet('anycpu','x86','x64')][string]$Platform = 'x86')
+param([switch]$Test, [switch]$UiTest, [switch]$MotionTest, [switch]$ManualUiTest, [string]$OutputDirectory, [string]$VerificationDirectory, [ValidateSet('anycpu','x86','x64')][string]$Platform = 'x86')
 $ErrorActionPreference = 'Stop'
 $petRoot = $PSScriptRoot
 $framework = Join-Path $env:WINDIR 'Microsoft.NET/Framework64/v4.0.30319'
@@ -45,6 +45,13 @@ if ($UiTest) {
     if ($LASTEXITCODE -ne 0) { throw 'Action UI test build failed.' }
     & (Join-Path $petBin 'PetActionUiTests.exe') (Join-Path $uiEvidence 'actions')
     if ($LASTEXITCODE -ne 0) { throw 'Action UI integration failed.' }
+}
+if ($MotionTest) {
+    & $compiler /nologo /target:exe /main:MotionRenderTests /optimize+ ('/platform:' + $Platform) '/codepage:65001' ('/out:' + (Join-Path $petBin 'MotionRenderTests.exe')) @references (Join-Path $petRoot 'src/LayeredDragonRig.cs') (Join-Path $petRoot 'tests/MotionRenderTests.cs')
+    if ($LASTEXITCODE -ne 0) { throw 'Motion test build failed.' }
+    $motionEvidence = if ($VerificationDirectory) { [IO.Path]::GetFullPath($VerificationDirectory) } else { Join-Path $petRoot 'verification/ui-integration' }
+    & (Join-Path $petBin 'MotionRenderTests.exe') (Join-Path $motionEvidence 'motion')
+    if ($LASTEXITCODE -ne 0) { throw 'Motion continuity checks failed.' }
 }
 if ($ManualUiTest) {
     $manualTests = @($sources) + (Join-Path $petRoot 'tests/ManualActionUi.cs')

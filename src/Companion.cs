@@ -32,19 +32,34 @@ namespace CodexDragon
             character.MouseLeave += delegate
             {
                 hovering = false;
+                layeredLookTarget = 0;
                 if (!settings.ReduceMotion && !dragging && action.Current == PetAction.None) AnimateTilt(0, .25);
             };
             character.MouseMove += delegate(object sender, MouseEventArgs e)
             {
                 if (settings.ReduceMotion || dragging || action.Current != PetAction.None || e.LeftButton == MouseButtonState.Pressed) return;
                 double x = e.GetPosition(character).X / Math.Max(1, character.ActualWidth) - .5;
-                AnimateTilt(Math.Max(-1.8, Math.Min(1.8, x * 3.6)), .18);
+                TrackPointer(x * 2);
             };
             SourceInitialized += delegate { ApplyClickThrough(); };
             ApplyMotion();
         }
+        private void TrackPointer(double direction)
+        {
+            if (settings.ReduceMotion || dragging || action.Current != PetAction.None) return;
+            direction = Math.Max(-1, Math.Min(1, direction));
+            if (LayeredRequested) layeredLookTarget = direction;
+            else AnimateTilt(direction * 1.8, .18);
+        }
+        private void ClearHeart()
+        {
+            if (heart == null) return;
+            heart.BeginAnimation(UIElement.OpacityProperty, null);
+            heart.RenderTransform = Transform.Identity; heart.Opacity = 0;
+        }
         private void ApplyMotion()
         {
+            if (settings.ReduceMotion || !IsVisible) ClearHeart();
             floatTransform.BeginAnimation(TranslateTransform.YProperty, null);
             RefreshLayeredPet();
             if (settings.ReduceMotion || !IsVisible || action.Current != PetAction.None) { floatTransform.Y = 0; tiltTransform.BeginAnimation(RotateTransform.AngleProperty, null); tiltTransform.Angle = 0; return; }
@@ -63,7 +78,8 @@ namespace CodexDragon
         {
             pettingCount++;
             string[] replies = { "收到摸摸，继续加油。", "角角有点痒。", "今天也一起加油。" };
-            Say("角色碎碎念", replies[random.Next(replies.Length)], 8); Wiggle();
+            Say("角色碎碎念", replies[random.Next(replies.Length)], 8);
+            PlayAction(PetAction.Pet);
             if (settings.ReduceMotion) return;
             heart.Opacity = 1;
             var rise = new TranslateTransform(); heart.RenderTransform = rise;

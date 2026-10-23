@@ -5,6 +5,7 @@ using System.IO;
 using System.Linq;
 using System.Windows;
 using System.Windows.Input;
+using System.Windows.Controls;
 using System.Windows.Threading;
 using CodexDragon;
 
@@ -60,12 +61,12 @@ public static class LayeredUiIntegration
         });
         at(13800, delegate { pet.LayeredSetWork(); });
         at(14100, delegate {
-            Check(pet.LayeredAction == PetAction.None && !pet.LayeredActive && !pet.LayeredTicking && pet.LayeredStateFrame == 1, "new work cancels tea and restores the work sprite without a hidden rig timer");
+            Check(pet.LayeredAction == PetAction.None && pet.LayeredActive && pet.LayeredTicking && pet.LayeredStateFrame == 1 && pet.LayeredCup == 0, "new work cancels tea while keeping the same layered character");
             save("working"); pet.DrinkTea();
         });
         at(14600, delegate { Check(pet.LayeredActive && pet.LayeredAction == PetAction.Tea, "manual tea is available while a task is working"); pet.LayeredComplete(); });
         at(14900, delegate {
-            Check(pet.LayeredAction == PetAction.Celebrate && !pet.LayeredActive && !pet.LayeredTicking, "completion celebration cleanly interrupts the layered tea");
+            Check(pet.LayeredAction == PetAction.Celebrate && pet.LayeredActive && pet.LayeredTicking && pet.LayeredCup == 0, "celebration interrupts tea on the same rig and fades out the cup");
             save("celebration");
         });
         at(16600, delegate {
@@ -73,7 +74,7 @@ public static class LayeredUiIntegration
             pet.DrinkTea(); pet.BeginPetDrag();
         });
         at(16800, delegate {
-            Check(pet.LayeredAction == PetAction.Drag && !pet.LayeredActive && !pet.LayeredTicking, "drag interrupts layered tea and owns the character pose");
+            Check(pet.LayeredAction == PetAction.Drag && pet.LayeredActive && pet.LayeredTicking, "drag interrupts tea without switching character artwork");
             pet.EndPetDrag();
         });
         at(16950, delegate { Check(pet.LayeredAction == PetAction.Land, "landing still follows a drag that interrupted tea"); });
@@ -106,6 +107,70 @@ public static class LayeredUiIntegration
             Check(Math.Abs(pet.ActualWidth - 495) < 2 && pet.LayeredInputAligned, "large desktop scale keeps the character inside its original layout");
             pet.LayeredScale(1); save("idle-final");
         });
+        at(21400, delegate {
+            pet.LayeredMenuScale("50%");
+            Check(Math.Abs(pet.ActualWidth - 165) < 2 && pet.LayeredInputAligned, "50 percent keeps the rendered character and hit target together");
+            Check(Math.Abs(Settings.Load().Scale - .5) < .001, "small size survives a settings reload");
+            save("compact-idle"); pet.LayeredPointer(1);
+        });
+        at(21900, delegate {
+            Check(pet.LayeredHeadTurn > 3, "hover smoothly turns the head toward the pointer");
+            save("hover-right"); pet.LayeredLeave();
+        });
+        at(22400, delegate {
+            Check(Math.Abs(pet.LayeredHeadTurn) < .2, "leaving the character smoothly restores its head");
+            pet.LayeredPet();
+        });
+        at(23100, delegate {
+            Check(pet.LayeredAction == PetAction.Pet && pet.LayeredBlink > .95 && pet.LayeredActive, "petting closes eyelids on the live layered character");
+            save("petting"); pet.HappyHop();
+            Check(pet.LayeredAction == PetAction.Pet, "hop does not restart an unfinished petting reaction");
+        });
+        at(24000, delegate {
+            Check(pet.LayeredAction == PetAction.None && pet.LayeredPetAmount < .01, "petting restores the natural pose");
+            pet.ContextMenu.Items.OfType<MenuItem>().Single(item => Convert.ToString(item.Header) == "开心跳一下").RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
+        });
+        at(24500, delegate {
+            Check(pet.LayeredAction == PetAction.Hop && pet.LayeredJumpY < -15 && pet.LayeredActive, "menu hop raises the actual layered character");
+            Check(pet.LayeredBubbleY < -20, "hop moves its speech bubble clear of the rising horns");
+            save("hop-airborne");
+        });
+        at(25300, delegate {
+            Check(pet.LayeredAction == PetAction.None && Math.Abs(pet.LayeredJumpY) < .05 && Math.Abs(pet.LayeredBubbleY) < .05, "hop lands and releases character and bubble transforms");
+            pet.HappyHop(); pet.BeginPetDrag();
+            Check(pet.LayeredAction == PetAction.Drag && Math.Abs(pet.LayeredJumpY) < .05, "drag starts from the current pose rather than a stale jump offset");
+            pet.EndPetDrag();
+        });
+        at(26100, delegate { pet.LayeredPet(); pet.LayeredReduce(true); });
+        at(26500, delegate {
+            Check(!pet.LayeredTicking && !pet.LayeredActionTicking && pet.LayeredPetAmount == 0 && pet.LayeredHeartOpacity == 0, "reduced motion clears touch animation and heart");
+            pet.HappyHop(); Check(pet.LayeredAction == PetAction.None && pet.LayeredBubble == "开心一下", "reduced motion keeps hop text feedback without movement");
+            pet.LayeredReduce(false); pet.LayeredPet(); pet.Hide();
+        });
+        at(26900, delegate {
+            Check(!pet.LayeredTicking && !pet.LayeredActionTicking && pet.LayeredHeartOpacity == 0, "hidden pet cancels interaction timers and heart");
+            pet.Show(); pet.LayeredMenuScale("40%");
+        });
+        at(27400, delegate {
+            Check(Math.Abs(pet.ActualWidth - 132) < 2 && pet.LayeredInputAligned, "40 percent menu size keeps input aligned");
+            pet.LayeredMenuScale("50%"); save("compact-final");
+        });
+        at(27800, delegate {
+            pet.ContextMenu.Items.OfType<MenuItem>().Single(item => Convert.ToString(item.Header) == "点头打招呼").RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
+        });
+        at(28250, delegate {
+            Check(pet.LayeredAction == PetAction.Greet && pet.LayeredNod > 2 && pet.LayeredActive, "greeting menu animates the existing head without replacing the character");
+            save("greeting");
+        });
+        at(30100, delegate {
+            Check(pet.LayeredAction == PetAction.None && Math.Abs(pet.LayeredNod) < .1, "greeting settles fully into idle");
+            pet.LayeredStretch();
+        });
+        at(31000, delegate {
+            Check(pet.LayeredArms > .95 && pet.LayeredCup == 0 && pet.LayeredActive, "stretch raises continuous arms without a cup or atlas switch");
+            save("continuous-stretch"); pet.Hide(); pet.Show();
+        });
+        at(31400, delegate { Check(pet.LayeredAction == PetAction.None && pet.LayeredArms == 0, "hide clears the raised-arm pose before resuming idle"); });
         int index = 0;
         var timer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(25) };
         timer.Tick += delegate
@@ -171,5 +236,22 @@ namespace CodexDragon
         internal void LayeredDaily(bool value) { SetDailyActions(value); }
         internal void LayeredStop() { StopAction(); }
         internal void LayeredScale(double value) { settings.Scale = value; Width = 330 * value; Height = 438 * value; }
+        internal double LayeredHeadTurn { get { return layeredRig.Current.HeadTurn; } }
+        internal double LayeredPetAmount { get { return layeredRig.Current.Pet; } }
+        internal double LayeredJumpY { get { return layeredRig.Current.OffsetY * .5; } }
+        internal double LayeredBubbleY { get { return interactionBubbleOffset.Y; } }
+        internal double LayeredHeartOpacity { get { return heart.Opacity; } }
+        internal double LayeredNod { get { return layeredRig.Current.HeadNod; } }
+        internal double LayeredArms { get { return layeredRig.Current.Arms; } }
+        internal void LayeredStretch() { PlayAction(PetAction.Stretch); }
+        internal void LayeredPointer(double x) { TrackPointer(x); }
+        internal void LayeredLeave() { character.RaiseEvent(new MouseEventArgs(Mouse.PrimaryDevice, Environment.TickCount) { RoutedEvent = MouseLeaveEvent }); }
+        internal void LayeredPet() { PetHead(); }
+        internal void LayeredMenuScale(string title)
+        {
+            var sizes = ContextMenu.Items.OfType<MenuItem>().Single(item => Convert.ToString(item.Header) == "调整大小");
+            sizes.Items.OfType<MenuItem>().Single(item => Convert.ToString(item.Header) == title).RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
+            UpdateLayout();
+        }
     }
 }

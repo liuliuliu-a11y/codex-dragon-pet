@@ -1,53 +1,45 @@
-# 安装与卸载
+# 安装、更新与卸载
 
-支持 Windows 10/11 x64 与 .NET Framework 4.8。本机需要安装并登录 Codex，桌宠不会替你安装 Codex，也不要求填写 OpenAI API 密钥。
+支持 Windows 10/11 与 .NET Framework 4.8。本机需要安装并登录 Codex，桌宠不要求另行填写 API 密钥。
 
-## 直接安装
-
-0.4.0 本次提供免安装 ZIP 与校验清单，未附 Setup.exe。下载 `codex-dragon-pet-0.4.0.zip`，按下方“免安装 ZIP”操作；已安装用户可按 README 的覆盖升级步骤保留原自动联动入口。以下安装向导说明适用于带 Setup.exe 的发布，历史 0.2.2 安装器不包含 0.4.0 新功能。
+## 下载与首次运行
 
 1. 打开 [最新 GitHub Release](https://github.com/liuliuliu-a11y/codex-dragon-pet/releases/latest)。
-2. 下载 `CodexDragonPet-Setup-版本.exe` 和 `SHA256SUMS.txt`。`Source code.zip` 是源码，不是免编译安装包。
-3. 在 PowerShell 中用 `Get-FileHash ./CodexDragonPet-Setup-版本.exe -Algorithm SHA256` 计算哈希，与清单中的对应行比较。
-4. 双击安装包，按向导安装。默认仅安装到当前用户目录，不要求管理员权限。可选择桌面快捷方式与 Codex 自动联动。
-5. 完成安装后启动小龙。新开 Codex 桌面宿主窗口时，小龙会自动出现；没有 Codex 登录或额度数据时，会显示连接状态，不伪造额度。
+2. 下载 `codex-dragon-pet-0.5.0.zip` 和 `SHA256SUMS.txt`。本版提供已编译 ZIP，没有 Setup.exe；GitHub 自动附带的 Source code 是源码。
+3. 用 `Get-FileHash ./codex-dragon-pet-0.5.0.zip -Algorithm SHA256` 核对清单中的哈希。
+4. 解压到长期保留的位置，双击 `start.cmd`。默认大小为 50%，右键“调整大小”可更改。
+5. 希望随 Codex 启动时运行 `scripts/Install.ps1`；它为当前用户创建桌面入口和自动联动快捷方式。只想手动运行，直接使用 `start.cmd` 即可。
 
-默认目录为 `%LOCALAPPDATA%/Programs/CodexDragonPet`。自动联动通过当前用户登录启动快捷方式运行轻量窗口事件程序；不记录按键或窗口文本。此安装包尚无发布者代码签名，Windows 可能显示未知发布者。请确认来源为本仓库 Release 并校验文件。
+公开发布包不需要 GitHub 令牌。匿名 API 限流时可用 Release 页面下载，不必提供账号凭据。本程序尚无发布者代码签名，请确认来源并核对校验清单。
 
-## 让自己的 AI 安装
+## 更新已有安装
 
-把仓库网址交给 AI，要求它阅读本文件、优先下载最新 Release 的已编译安装包、核对 SHA-256，并在当前用户下安装。不要提供聊天记录、密码或令牌。
+1. 将新版 ZIP **解压到一个新文件夹**，不要直接解压覆盖运行中的程序。
+2. 双击新文件夹内的 `update.cmd`。
+3. 更新程序从当前用户的 `Codex Dragon Pet Link.lnk` 找到旧安装目录；没有联动入口时，检查 `%LOCALAPPDATA%/Programs/CodexDragonPet`。
+4. 更新程序停止该目录下的桌宠与联动程序，备份旧 `bin`，替换并校验运行文件，然后重新启动。备份保留在原安装目录 `backup/update-时间-编号/bin` 中。
+5. 用户设置与自动联动入口不变。已有用户想采用新版小尺寸，可右键选择“调整大小 → 50%”。
 
-AI 可以用 GitHub API 查找最新 Release；如果匿名 API 返回限流错误，应改用 [最新发布页面](https://github.com/liuliuliu-a11y/codex-dragon-pet/releases/latest) 或 README 的直接下载链接。页面会跳转到最新版本，附件也可以公开下载。不要因为 API 限流而要求用户提供 GitHub 令牌或登录凭据。
-
-支持 Inno Setup 的标准无人值守参数，例如：
+自定义便携目录可显式指定：
 
 ```powershell
-$setup = Start-Process -FilePath './CodexDragonPet-Setup-0.2.2.exe' -ArgumentList '/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART','/TASKS=desktopicon,autolink' -PassThru
-$setup.WaitForExit()
-if ($setup.ExitCode -ne 0) { throw "Installation failed: $($setup.ExitCode)" }
+powershell -NoProfile -File ./scripts/Update-Installed.ps1 -TargetDirectory '旧桌宠目录'
 ```
 
-静默安装后可运行 `%LOCALAPPDATA%/Programs/CodexDragonPet/bin/CodexDragonPet.exe`。默认选择的联动程序也会运行；如果 Codex 已打开，它会带起桌宠。
+请先退出其他目录中的便携版桌宠，避免单实例机制让旧进程继续占用显示。更新入口不关闭 Codex，也不改聊天记录。复制或校验失败会尝试恢复备份；失败提示保留在命令窗口中。
 
-这里使用进程对象的 `WaitForExit()`；PowerShell 的 `Start-Process -Wait` 会连同常驻桌宠等子进程一起等待，可能一直不返回。
+如果需要手动回退，先退出桌宠和联动程序，把备份中的 `bin` 内容复制回原安装目录的 `bin`，再启动原路径下的程序。不要把其他个人文件放入运行时 `bin/assets` 目录。
 
-`/TASKS=desktopicon,autolink` 明确开启桌面快捷方式与自动联动，避免沿用上次安装时关闭联动的选择。AI 应确认有本机程序执行能力；仅能聊天的 AI 需要指导用户运行安装器。
+## 联动与设置
 
-安装完成后，AI 还应检查以下结果，不能只凭安装器退出码就报告全部成功：
+- 设置位于 `%LOCALAPPDATA%/CodexDragonPet/settings.json`，与程序目录分开。
+- 联动程序只观察桌面宿主进程与窗口事件，不读取窗口文字、按键或聊天内容。
+- 当前用户 Startup 中的 `Codex Dragon Pet Link.lnk` 应指向保留位置的 `bin/CodexPetWatcher.exe`。若 Windows 禁用了该启动项，需自行重新启用。
+- 没有登录或额度数据时显示连接状态，不伪造额度。
+- 关闭自动联动可运行 `scripts/Disable-CodexLink.ps1`。
 
-- 当前用户 Startup 中存在 `Codex Dragon Pet Link.lnk`，目标指向实际安装目录下的 `bin/CodexPetWatcher.exe`；对应的辅助进程正在运行。
-- 正常打开 Codex 桌面应用后，小龙可见。v0.2.2 支持 Codex 在同一个进程里新开窗口；重复启动不会多开桌宠。
-- 若 Windows“启动应用”设置禁用了该快捷方式，后续登录不会启动联动程序，需要用户重新启用。不要为测试强行关闭正在运行安装任务的 Codex、退出 Windows 或重启电脑。
+## 卸载
 
-本次发布已验证公开下载与 SHA-256、当前用户安装、真实登录启动快捷方式，以及通过 Windows 注册入口打开实际 Codex 后自动带起桌宠。新窗口的回归检查另用隔离窗口宿主覆盖，测试不依赖读取真实聊天。
+便携版：先关闭联动与桌宠，再移除它自己的解压目录和桌面入口。用户设置与 Codex 聊天记录可以继续保留。
 
-## 升级与卸载
-
-运行新版本安装包，使用原安装目录即可升级。安装和卸载会先关闭这个安装目录下的桌宠与联动程序；Codex 本身和其他目录中的程序不会被关闭。请先退出其他目录中的便携版桌宠，避免单实例机制使新安装的程序无法接管。
-
-卸载入口在 Windows“已安装的应用”或开始菜单“Codex 小龙桌宠”中。卸载只移除安装器记录的程序文件、快捷方式和卸载注册信息，保留 `%LOCALAPPDATA%/CodexDragonPet` 下的设置及 Codex 聊天记录。用户后来放入安装目录的额外文件也不会被递归清空。
-
-## 免安装 ZIP
-
-下载 `codex-dragon-pet-版本.zip`，解压到固定目录，双击 `start.cmd` 即可运行。需要自动联动时运行 `scripts/Install.ps1`；关闭联动运行 `scripts/Disable-CodexLink.ps1`。便携版没有安装器卸载入口，关闭程序及联动后可删除它自己的解压目录。
+历史 Setup.exe 安装版：可在 Windows“已安装的应用”中卸载。历史 0.2.2 安装器不含本版功能，不应作为更新包下载。

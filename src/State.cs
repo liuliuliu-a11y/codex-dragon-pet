@@ -255,7 +255,7 @@ namespace CodexDragon
 
     public sealed class Settings
     {
-        public double Left = -999999, Top = -999999, Scale = 1;
+        public double Left = -999999, Top = -999999, Scale = .5;
         public bool Sound = true, Topmost = true, Bubble = true, SmallTalk = true, Notifications = true;
         public bool AutoBubble = true, ClickThrough, Quiet, ReduceMotion;
         public bool DailyActions = true;
