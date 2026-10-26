@@ -20,6 +20,8 @@ venv/
 *.user
 *.suo
 diagnostics.json
+src/VPetHost/bin/
+src/VPetHost/obj/
 *.zip
 *.exe
 assets/dragon-sprites.png
