@@ -57,6 +57,7 @@ public static class ActionUiIntegration
         var pet = new PetWindow(true) { Title = "Codex 小龙 · 动作隔离验收", IsHitTestVisible = false };
         var seen = new HashSet<PetAction>();
         Action<string> save = delegate(string name) { pet.SaveEvidence(Path.Combine(evidence, name)); };
+        double beforeWalk = 0, stoppedWalk = 0;
         var steps = new List<Step> {
             new Step(100, delegate { Menu(pet, "一起喝茶"); Check(pet.VerificationAction == PetAction.Tea, "real tea menu starts the action"); save("tea-start"); }),
             new Step(1000, delegate { save("tea-opening"); Check(pet.VerificationLayered && pet.VerificationFrame == -1 && pet.VerificationTea > .5, "tea starts continuous sleeve motion without a pose atlas"); }),
@@ -84,7 +85,18 @@ public static class ActionUiIntegration
             new Step(16100, delegate { Check(seen.Contains(PetAction.Blink), "idle scheduling produces a blink without manual input"); pet.PrepareIdleVerification(); }),
             new Step(17800, delegate { save("automatic-stretch"); Check(pet.VerificationAction == PetAction.Stretch, "idle scheduling also produces a stretch and yawn"); }),
             new Step(19500, delegate { Toggle(pet, "日常小动作", false); Check(!Settings.Load().DailyActions, "daily-action preference saves and reloads"); Toggle(pet, "安静陪伴", true); pet.PrepareIdleVerification(); }),
-            new Step(21300, delegate { save("quiet"); Check(pet.VerificationAction == PetAction.None, "quiet companionship suppresses unsolicited idle actions"); })
+            new Step(21300, delegate { save("quiet"); Check(pet.VerificationAction == PetAction.None, "quiet companionship suppresses unsolicited idle actions"); }),
+            new Step(21400, delegate { Menu(pet, "休息一会儿"); Check(pet.VerificationAction == PetAction.Sleep, "rest menu starts sleeping even in quiet mode"); }),
+            new Step(24000, delegate { save("sleeping"); Check(pet.VerificationRest > .99 && pet.VerificationBlink > .99, "sleep settles with closed eyes and stays asleep"); Menu(pet, "摸摸头"); Check(pet.VerificationAction == PetAction.Wake, "touching a sleeping pet wakes it"); }),
+            new Step(26700, delegate { save("awake"); Check(pet.VerificationAction == PetAction.None && pet.VerificationRest < .01, "waking returns to the upright pose"); Menu(pet, "休息一会儿"); }),
+            new Step(29200, delegate { Menu(pet, "喂一块点心"); Check(pet.VerificationAction == PetAction.Wake, "feeding waits for the sleeping pet to rise"); }),
+            new Step(34300, delegate { save("feeding"); Check(pet.VerificationAction == PetAction.Feed && pet.VerificationSnack > .8, "queued feeding renders a visible snack near the hands"); }),
+            new Step(37500, delegate { Check(pet.VerificationAction == PetAction.None && pet.VerificationSnack < .01, "feeding finishes with no leftover prop"); beforeWalk = pet.Left; Menu(pet, "走一小段"); }),
+            new Step(39500, delegate { save("walking"); Check(Math.Abs(pet.Left - beforeWalk) > 5 && Math.Abs(pet.Left - beforeWalk) <= 100 * Settings.Load().Scale, "walk moves the actual window a bounded distance"); pet.BeginPetDrag(); stoppedWalk = pet.Left; }),
+            new Step(39800, delegate { Check(pet.Left == stoppedWalk && pet.VerificationAction == PetAction.Drag, "drag interrupts walking without position drift"); pet.EndPetDrag(); }),
+            new Step(40500, delegate { pet.Left = SystemParameters.WorkArea.Right - pet.Width; beforeWalk = pet.Left; Menu(pet, "走一小段"); }),
+            new Step(44900, delegate { Check(pet.VerificationAction == PetAction.None && beforeWalk - pet.Left > 30 && Settings.Load().Left == pet.Left && pet.Left >= SystemParameters.WorkArea.Left, "walk turns inward at the screen edge and saves its new position"); Menu(pet, "休息一会儿"); pet.Hide(); Check(pet.VerificationAction == PetAction.None && !pet.VerificationTimer, "hiding during sleep stops the sleeping timer"); pet.Show(); }),
+            new Step(45200, delegate { Toggle(pet, "减少动画", true); Menu(pet, "喂一块点心"); Menu(pet, "走一小段"); Menu(pet, "休息一会儿"); Check(pet.VerificationAction == PetAction.None && !pet.VerificationTimer, "reduced motion keeps all new interactions still"); })
         };
         // Keep each observation relative to the real three-second completion confirmation.
         foreach (Step item in steps) item.At += (item.At >= 4300 ? 6500 : 0) + (item.At >= 10100 ? 6000 : item.At >= 5600 ? 3000 : 0);
@@ -141,6 +153,9 @@ namespace CodexDragon
         internal bool VerificationLayered { get { return layeredView.Visibility == Visibility.Visible && layeredTimer.IsEnabled; } }
         internal double VerificationTea { get { return actionClock.Elapsed.TotalSeconds; } }
         internal double VerificationCup { get { return layeredRig.Current.CupOpacity; } }
+        internal double VerificationRest { get { return layeredRig.Current.Rest; } }
+        internal double VerificationBlink { get { return layeredRig.Current.Blink; } }
+        internal double VerificationSnack { get { return layeredRig.Current.SnackOpacity; } }
         internal void PrepareIdleVerification() { speechUntil = DateTime.MinValue; nextIdleAction = DateTime.MinValue; hovering = false; }
     }
 }

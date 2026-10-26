@@ -81,6 +81,8 @@ namespace CodexDragon
         {
             double elapsed = action.Current == PetAction.None ? 0 : action.Elapsed + Math.Max(0, actionClock.Elapsed.TotalMilliseconds - actionLastTick);
             double progress = action.Duration == 0 ? 0 : Math.Min(1, elapsed / action.Duration);
+            if (walkActive && action.Current == PetAction.Walk)
+                Left = Pose.Mix(walkStart, walkEnd, Pose.Smooth(0, 1, progress));
             double teaTime = action.Current == PetAction.Tea ? elapsed / 1000 : -1;
             double blink = action.Current == PetAction.Blink ? Math.Pow(Math.Sin(progress * Math.PI), 2) : -1;
             MotionKind motion = MotionKind.Idle;
@@ -93,6 +95,10 @@ namespace CodexDragon
                 case PetAction.Land: motion = MotionKind.Land; break;
                 case PetAction.Celebrate: motion = MotionKind.Celebrate; break;
                 case PetAction.Greet: motion = MotionKind.Greet; break;
+                case PetAction.Sleep: motion = MotionKind.Sleep; break;
+                case PetAction.Wake: motion = MotionKind.Wake; break;
+                case PetAction.Walk: motion = MotionKind.Walk; break;
+                case PetAction.Feed: motion = MotionKind.Feed; break;
             }
             layeredRig.Update(layeredTime, teaTime, false, blink, layeredLook * 4, motion: motion,
                 progress: progress, seconds: elapsed / 1000, mood: activeFrame);

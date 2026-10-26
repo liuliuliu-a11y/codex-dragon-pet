@@ -5,8 +5,8 @@
 ## 下载与首次运行
 
 1. 打开 [最新 GitHub Release](https://github.com/liuliuliu-a11y/codex-dragon-pet/releases/latest)。
-2. 下载 `codex-dragon-pet-0.5.0.zip` 和 `SHA256SUMS.txt`。本版提供已编译 ZIP，没有 Setup.exe；GitHub 自动附带的 Source code 是源码。
-3. 用 `Get-FileHash ./codex-dragon-pet-0.5.0.zip -Algorithm SHA256` 核对清单中的哈希。
+2. 下载 `codex-dragon-pet-0.6.0.zip` 和 `SHA256SUMS.txt`。本版提供已编译 ZIP，没有 Setup.exe；GitHub 自动附带的 Source code 是源码。
+3. 用 `Get-FileHash ./codex-dragon-pet-0.6.0.zip -Algorithm SHA256` 核对清单中的哈希。
 4. 解压到长期保留的位置，双击 `start.cmd`。默认大小为 50%，右键“调整大小”可更改。
 5. 希望随 Codex 启动时运行 `scripts/Install.ps1`；它为当前用户创建桌面入口和自动联动快捷方式。只想手动运行，直接使用 `start.cmd` 即可。
 

@@ -8,7 +8,7 @@ using System.Windows.Media.Media3D;
 
 namespace LayeredDragon
 {
-    public enum MotionKind { Idle, Pet, Hop, Stretch, Drag, Land, Celebrate, Greet }
+    public enum MotionKind { Idle, Pet, Hop, Stretch, Drag, Land, Celebrate, Greet, Sleep, Wake, Walk, Feed }
 
     public sealed class Pose
     {
@@ -16,6 +16,7 @@ namespace LayeredDragon
         public double Time, Tea, CupOpacity, CupX, CupY, CupAngle, Blink, Lift, Explode;
         public double HeadTurn, Pet;
         public double HeadNod, Arms, Lean, OffsetY, Wing, Tail;
+        public double Rest, Step, SnackOpacity, SnackSize = 1;
         public double ScaleX = 1, ScaleY = 1;
         public Point LeftShoulder, LeftElbow, LeftWrist, RightShoulder, RightElbow, RightWrist;
         public string Stage;
@@ -123,6 +124,42 @@ namespace LayeredDragon
                 Blink = Math.Max(Blink, .9 * Pulse((t - .14) / .28));
                 Lean = 1.5 * envelope; Tail = 3 * Math.Sin(t * Math.PI * 3) * envelope;
             }
+            else if (kind == MotionKind.Sleep || kind == MotionKind.Wake)
+            {
+                Rest = kind == MotionKind.Sleep ? Smooth(0, 1, t) : 1 - Smooth(0, .8, t);
+                Blink = Math.Max(Blink, Rest);
+                HeadNod = 11 * Rest; HeadTurn = -7 * Rest;
+                Lean = -7 * Rest; Wing = 4 * Rest; Tail = -6 * Rest;
+                Stage = kind == MotionKind.Sleep ? "蜷身休息" : "慢慢醒来";
+                if (kind == MotionKind.Wake)
+                {
+                    double stretch = Pulse((t - .5) / .5);
+                    HeadNod -= 3 * stretch; ScaleY += .018 * stretch;
+                }
+            }
+            else if (kind == MotionKind.Walk)
+            {
+                double step = Math.Sin(t * Math.PI * 8);
+                Step = step * envelope;
+                Lean = 2 * step * envelope; OffsetY = -3 * step * step * envelope;
+                HeadTurn += -1.5 * step * envelope; Tail = -4 * step * envelope;
+                Stage = "轻轻走几步";
+            }
+            else if (kind == MotionKind.Feed)
+            {
+                Arms = Smooth(0, .18, t) * (1 - Smooth(.78, 1, t));
+                double lift = Smooth(.16, .42, t) * (1 - Smooth(.66, .88, t));
+                CupX = 255; CupY = Mix(336, 248, lift);
+                LeftElbow = new Point(194, 314 - lift * 28);
+                RightElbow = new Point(329, 313 - lift * 27);
+                LeftWrist = new Point(232, CupY + 15); RightWrist = new Point(278, CupY + 15);
+                SnackOpacity = Smooth(.1, .2, t) * (1 - Smooth(.65, .77, t));
+                SnackSize = 1 - .65 * Smooth(.43, .66, t);
+                double chew = Smooth(.42, .47, t) * (1 - Smooth(.64, .73, t));
+                HeadNod = 2.5 * Math.Pow(Math.Sin(t * Math.PI * 16), 2) * chew;
+                Blink = Math.Max(Blink, chew); Tail = 3 * Math.Sin(t * Math.PI * 4) * envelope;
+                Stage = "捧起点心吃一口";
+            }
         }
         public Pose Copy() { return (Pose)MemberwiseClone(); }
         public void BlendFrom(Pose from, double u)
@@ -134,6 +171,8 @@ namespace LayeredDragon
             Lift = mix(from.Lift, Lift); HeadTurn = mix(from.HeadTurn, HeadTurn); HeadNod = mix(from.HeadNod, HeadNod); Pet = mix(from.Pet, Pet);
             Lean = mix(from.Lean, Lean); OffsetY = mix(from.OffsetY, OffsetY); Wing = mix(from.Wing, Wing); Tail = mix(from.Tail, Tail);
             ScaleX = mix(from.ScaleX, ScaleX); ScaleY = mix(from.ScaleY, ScaleY);
+            Rest = mix(from.Rest, Rest); SnackOpacity = mix(from.SnackOpacity, SnackOpacity); SnackSize = mix(from.SnackSize, SnackSize);
+            Step = mix(from.Step, Step);
             LeftShoulder = point(from.LeftShoulder, LeftShoulder); RightShoulder = point(from.RightShoulder, RightShoulder);
             LeftElbow = point(from.LeftElbow, LeftElbow); RightElbow = point(from.RightElbow, RightElbow);
             LeftWrist = point(from.LeftWrist, LeftWrist); RightWrist = point(from.RightWrist, RightWrist);
@@ -160,6 +199,10 @@ namespace LayeredDragon
             y += tail * Math.Cos(Time * 1.3) * 2.1;
             x += tail * Tail;
             y += wing * Wing;
+            y -= 4 * Math.Max(0, Step * (source.X < 260 ? 1 : -1)) * Smooth(418, 460, source.Y);
+            // Lower the torso and fold the lower body while retaining the face proportions.
+            y += Rest * 112 * Clamp((486 - source.Y) / 246);
+            x = 256 + (x - 256) * (1 + .035 * Rest);
             x = 256 + (x - 256) * ScaleX; y = 486 + (y - 486) * ScaleY;
             double lean = Lean * Math.PI / 180;
             dx = x - 256; dy = y - 486;
@@ -219,7 +262,7 @@ namespace LayeredDragon
         public Pose Current { get; private set; }
         private Pose transitionFrom;
         private string transitionKey = "";
-        private double transitionStart;
+        private double transitionStart, transitionDuration = .22;
         public DragonRig(string assetDirectory)
         {
             body = new Surface(Path.Combine(assetDirectory, "body.png"), new Rect(0, 0, 512, 512), 24, 24, 0);
@@ -281,11 +324,14 @@ namespace LayeredDragon
             p.ApplyMotion(motion, progress, seconds, mood);
             string key = motion + ":" + (teaTime >= 0) + ":" + mood;
             if (key != transitionKey)
-            { transitionFrom = Current == null ? null : Current.Copy(); transitionStart = time; transitionKey = key; }
+            {
+                transitionFrom = Current == null ? null : Current.Copy(); transitionStart = time; transitionKey = key;
+                transitionDuration = transitionFrom != null && transitionFrom.Rest > .05 ? .85 : .22;
+            }
             if (snap) transitionFrom = null;
             if (transitionFrom != null)
             {
-                double amount = Pose.Smooth(0, .22, time - transitionStart);
+                double amount = Pose.Smooth(0, transitionDuration, time - transitionStart);
                 p.BlendFrom(transitionFrom, amount);
                 if (amount >= 1) transitionFrom = null;
             }
@@ -315,7 +361,19 @@ namespace LayeredDragon
         protected override void OnRender(DrawingContext dc)
         {
             Pose p = rig.Current;
-            if (p == null || p.CupOpacity < .01 || p.Explode > 0) return;
+            if (p == null || p.Explode > 0) return;
+            if (p.SnackOpacity > .01)
+            {
+                Point origin = p.Warp(new Point(p.CupX, p.CupY));
+                origin = new Point(256 + (origin.X - 256) * 512 / cameraWidth, 256 + (origin.Y - 256) * 512 / cameraWidth);
+                double size = 512 / cameraWidth * p.SnackSize;
+                dc.PushOpacity(p.SnackOpacity);
+                dc.DrawEllipse(new SolidColorBrush(Color.FromRgb(244, 192, 117)), new Pen(new SolidColorBrush(Color.FromRgb(163, 106, 69)), 1.5), origin, 18 * size, 12 * size);
+                foreach (Point chip in new[] { new Point(-7, -3), new Point(5, -4), new Point(1, 5) })
+                    dc.DrawEllipse(new SolidColorBrush(Color.FromRgb(131, 83, 57)), null, origin + new Vector(chip.X * size, chip.Y * size), 1.7 * size, 1.7 * size);
+                dc.Pop();
+            }
+            if (p.CupOpacity < .01) return;
             for (int i = 0; i < 3; i++)
             {
                 double cycle = (p.Time * .45 + i / 3.0) % 1;

@@ -67,7 +67,7 @@ namespace CodexDragon
                         };
                     }
                     var registration = ThreadPool.RegisterWaitForSingleObject(show, delegate
-                    { if (!window.Dispatcher.HasShutdownStarted) window.Dispatcher.BeginInvoke(new Action(window.Show)); }, null, Timeout.Infinite, false);
+                    { if (!window.Dispatcher.HasShutdownStarted) window.Dispatcher.BeginInvoke(new Action(window.ShowAwake)); }, null, Timeout.Infinite, false);
                     try { app.Run(window); }
                     finally { registration.Unregister(null); mutex.ReleaseMutex(); }
                 }
@@ -382,6 +382,10 @@ namespace CodexDragon
             AddMenu(menu, "点头打招呼", Greet);
             AddMenu(menu, "开心跳一下", HappyHop);
             AddMenu(menu, "伸个懒腰", delegate { PlayAction(PetAction.Stretch); });
+            AddMenu(menu, "休息一会儿", Rest);
+            AddMenu(menu, "叫醒小龙", WakeUp);
+            AddMenu(menu, "走一小段", WalkAround);
+            AddMenu(menu, "喂一块点心", Feed);
             AddMenu(menu, settings.DailyActions ? "暂停日常小动作" : "开启日常小动作", delegate { SetDailyActions(!settings.DailyActions); });
             menu.Items.Add(new Separator());
             AddMenu(menu, settings.ClickThrough ? "关闭鼠标穿透" : "开启鼠标穿透", delegate { SetClickThrough(!settings.ClickThrough); });
@@ -391,7 +395,7 @@ namespace CodexDragon
             AddMenu(menu, settings.Topmost ? "取消置顶" : "置顶显示", delegate { settings.Topmost = !settings.Topmost; Topmost = settings.Topmost; Persist(); ContextMenu = MakeMenu(); });
             var sizes = new MenuItem { Header = "调整大小" };
             foreach (double size in new[] { .4, .5, .6, .75, 1.0, 1.25, 1.5 })
-            { double value = size; var item = new MenuItem { Header = (size * 100) + "%", IsChecked = Math.Abs(settings.Scale - size) < .01 }; item.Click += delegate { settings.Scale = value; Width = 330 * value; Height = 438 * value; ClampPosition(); SavePosition(); ContextMenu = MakeMenu(); }; sizes.Items.Add(item); }
+            { double value = size; var item = new MenuItem { Header = (size * 100) + "%", IsChecked = Math.Abs(settings.Scale - size) < .01 }; item.Click += delegate { if (action.Current == PetAction.Walk) StopAction(); settings.Scale = value; Width = 330 * value; Height = 438 * value; ClampPosition(); SavePosition(); ContextMenu = MakeMenu(); }; sizes.Items.Add(item); }
             menu.Items.Add(sizes); menu.Items.Add(new Separator());
             AddMenu(menu, "收起到托盘", delegate { Hide(); });
             AddMenu(menu, "退出小龙", Close); return menu;
@@ -404,7 +408,7 @@ namespace CodexDragon
             trayArt = new System.Drawing.Icon(iconPath, Forms.SystemInformation.SmallIconSize);
             tray = new Forms.NotifyIcon { Icon = trayArt, Text = "Codex 小龙", Visible = true };
             var menu = new Forms.ContextMenuStrip();
-            menu.Items.Add("显示小龙", null, delegate { Dispatcher.BeginInvoke(new Action(delegate { Show(); })); });
+            menu.Items.Add("显示并叫醒小龙", null, delegate { Dispatcher.BeginInvoke(new Action(ShowAwake)); });
             menu.Items.Add("工作与额度面板", null, delegate { Dispatcher.BeginInvoke(new Action(OpenDashboard)); });
             menu.Items.Add("一起喝茶", null, delegate { Dispatcher.BeginInvoke(new Action(delegate { Show(); DrinkTea(); })); });
             trayClickThrough = new Forms.ToolStripMenuItem("鼠标穿透（取消勾选可恢复互动）") { Checked = settings.ClickThrough };
@@ -588,6 +592,7 @@ namespace CodexDragon
                 localVersion = LocalVersion, stateFrame = activeFrame, action = action.Current.ToString(), actionFrame = action.Frame,
                 layeredVisible = layeredView.Visibility == Visibility.Visible, layeredTimerRunning = layeredTimer.IsEnabled,
                 layeredUpdates = layeredUpdates, layeredStage = layeredRig.Current.Stage, layeredCupOpacity = layeredRig.Current.CupOpacity,
+                restAmount = layeredRig.Current.Rest, snackOpacity = layeredRig.Current.SnackOpacity, left = Left, top = Top,
                 teaTimeSeconds = action.Current == PetAction.Tea ? actionClock.Elapsed.TotalSeconds : -1,
                 actionTimerRunning = actionTimer != null && actionTimer.IsEnabled, dailyActions = settings.DailyActions,
                 bubbleText = bubbleText.Text, lastCompletedThreadId = lastCompletedId,

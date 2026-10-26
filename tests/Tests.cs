@@ -95,6 +95,28 @@ public static class Tests
     private static void CheckActions()
     {
         var playback = new ActionPlayback();
+        Check(playback.Start(PetAction.Sleep), "rest starts from idle");
+        playback.Advance(600000);
+        Check(playback.Current == PetAction.Sleep && playback.Progress == 1, "sleep holds after settling rather than replaying entry");
+        Check(!playback.Start(PetAction.Blink), "idle scheduling cannot wake the pet");
+        playback.Start(PetAction.Feed);
+        Check(playback.Current == PetAction.Wake, "feeding a sleeping pet first wakes it");
+        playback.Advance(2400);
+        Check(playback.Current == PetAction.Feed && playback.Elapsed == 0, "queued feeding starts after waking");
+        playback.Advance(5600);
+        Check(playback.Current == PetAction.None, "feeding ends without leaving a stuck action");
+        playback.Start(PetAction.Sleep); playback.Start(PetAction.Wake); playback.Cancel(); playback.Advance(3000);
+        Check(playback.Current == PetAction.None, "cancellation clears a pending wake");
+        playback.Start(PetAction.Drag);
+        Check(!playback.Start(PetAction.Sleep) && !playback.Start(PetAction.Walk) && !playback.Start(PetAction.Feed), "new interactions cannot override dragging");
+        playback.Cancel(); playback.Start(PetAction.Sleep); playback.Start(PetAction.Drag);
+        Check(playback.Current == PetAction.Drag, "dragging immediately picks up a sleeping pet");
+        playback.Cancel(); playback.Start(PetAction.Sleep); playback.Start(PetAction.Celebrate);
+        Check(playback.Current == PetAction.Celebrate, "completion can interrupt sleep");
+        playback.Cancel(); playback.Start(PetAction.Walk); playback.Advance(1000);
+        Check(!playback.Start(PetAction.Walk) && playback.Elapsed == 1000, "repeated walking cannot rewind window movement");
+        playback.Advance(3000);
+        Check(playback.Current == PetAction.None, "a short walk always finishes");
         Check(playback.Frame == -1 && playback.Current == PetAction.None, "no action owns the state sprite initially");
         Check(playback.Start(PetAction.Tea), "tea interaction starts");
         playback.Advance(9999);

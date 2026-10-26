@@ -1,12 +1,14 @@
 # Codex 小龙桌宠
 
-当前版本：0.5.0。Windows 本地悬浮桌宠，陪伴使用 Codex，并提示工作结束和额度变化。
+当前版本：0.6.0。Windows 本地悬浮桌宠，陪伴使用 Codex，并提示工作结束和额度变化。
+
+新增休息、唤醒、走动和投喂：右键选择“休息一会儿”，小龙会蜷身闭眼、保持轻微呼吸；点击她或选择“叫醒小龙”即可缓缓起身。“走一小段”会在当前屏幕内移动一小段距离，拖动可随时打断；“喂一块点心”会捧起饼干、吃掉再收手。睡着时选择投喂会先醒来再吃，新工作开始也会唤醒。休息不会自动触发；安静陪伴仍接受手动互动，减少动画时只提供文字回应。再次启动程序或使用托盘“显示并叫醒小龙”也能唤回桌宠。
 
 本版重做动作衔接：待机、工作、摸头、喝茶、伸展、拿起、落地和庆祝共用同一套分层角色，动作中断从当前姿势柔和接续。增加点头打招呼、歪头跟随、闭眼蹭蹭摆尾和蓄力跳跃。默认 50% 小尺寸，右键“调整大小”可选 40%、50%、60% 等档位；升级保留已有设置，需要时可手动选 50%。
 
 待机时有自然呼吸、眨眼、发尾和翼尾微动；“一起喝茶”播放 10 秒的拿杯、举杯、喝茶、放杯和收杯。伸展和庆祝使用连续的肩、肘、腕运动；拖动时轻轻晃动，落地有缓冲。“日常小动作”可暂停自动动作和待机微动；安静陪伴暂停自动动作，仍可手动互动；减少动画保留静态状态和文字回应。
 
-**下载即用，无需编译：[Windows 免安装 ZIP](https://github.com/liuliuliu-a11y/codex-dragon-pet/releases/download/v0.5.0/codex-dragon-pet-0.5.0.zip)** · [所有发布文件](https://github.com/liuliuliu-a11y/codex-dragon-pet/releases/latest)
+**下载即用，无需编译：[Windows 免安装 ZIP](https://github.com/liuliuliu-a11y/codex-dragon-pet/releases/download/v0.6.0/codex-dragon-pet-0.6.0.zip)** · [所有发布文件](https://github.com/liuliuliu-a11y/codex-dragon-pet/releases/latest)
 
 <img src="preview-v0.2.0.png" width="300" alt="Codex 小龙桌宠预览，额度为示例数据">
 
@@ -14,13 +16,13 @@ Windows 悬浮桌面伙伴。银白发、紫瞳、龙角、白色中式裙装的
 
 形象文件及提示词见 `assets/dragon-sprites-clean.png` 和 `assets/ART-NOTES.md`。
 
-[观看动作预览](https://github.com/liuliuliu-a11y/codex-dragon-pet/releases/download/v0.5.0/animation-preview-0.5.0.mp4)（使用实际动画程序逐帧渲染，非屏幕录像）。
+[观看动作预览](https://github.com/liuliuliu-a11y/codex-dragon-pet/releases/download/v0.6.0/animation-preview-0.6.0.mp4)（使用实际动画程序逐帧渲染，非屏幕录像）。
 
 ## 使用
 
-0.5.0 提供已编译的 `codex-dragon-pet-0.5.0.zip`：解压到长期保留的位置，双击 `start.cmd`，或者直接运行 `bin/CodexDragonPet.exe`。桌宠默认出现在屏幕右下角，置顶显示。已经运行时再次启动会把她从托盘唤回。请先在这台电脑安装并登录 Codex。不要把 GitHub 自动生成的 Source code 压缩包当作免编译运行包。
+0.6.0 提供已编译的 `codex-dragon-pet-0.6.0.zip`：解压到长期保留的位置，双击 `start.cmd`，或者直接运行 `bin/CodexDragonPet.exe`。桌宠默认出现在屏幕右下角，置顶显示。已经运行时再次启动会把她从托盘唤回。请先在这台电脑安装并登录 Codex。不要把 GitHub 自动生成的 Source code 压缩包当作免编译运行包。
 
-从旧安装版升级：把 ZIP 解压到一个新文件夹，再双击 `update.cmd`。更新程序从现有自动联动快捷方式寻找安装目录，找不到时检查当前用户的默认安装目录；备份旧程序后替换运行文件、校验哈希并重新启动。用户设置和原自动联动入口保留。自定义便携目录可运行 `powershell -NoProfile -File ./scripts/Update-Installed.ps1 -TargetDirectory "旧目录"`。备份保存在原安装目录的 `backup` 中。0.5.0 提供 ZIP，未附 Setup.exe。
+从旧安装版升级：把 ZIP 解压到一个新文件夹，再双击 `update.cmd`。更新程序从现有自动联动快捷方式寻找安装目录，找不到时检查当前用户的默认安装目录；备份旧程序后替换运行文件、校验哈希并重新启动。用户设置和原自动联动入口保留。自定义便携目录可运行 `powershell -NoProfile -File ./scripts/Update-Installed.ps1 -TargetDirectory "旧目录"`。备份保存在原安装目录的 `backup` 中。0.6.0 提供 ZIP，未附 Setup.exe。
 
 校验、无人值守安装、升级和卸载说明见 [安装说明](docs/INSTALLATION.md)。
 

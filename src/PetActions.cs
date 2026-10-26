@@ -8,13 +8,13 @@ using System.Windows.Media.Animation;
 using System.Windows.Media.Imaging;
 using System.Windows.Threading;
 
-[assembly: System.Reflection.AssemblyVersion("0.5.0.0")]
-[assembly: System.Reflection.AssemblyFileVersion("0.5.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersion("0.5.0")]
+[assembly: System.Reflection.AssemblyVersion("0.6.0.0")]
+[assembly: System.Reflection.AssemblyFileVersion("0.6.0.0")]
+[assembly: System.Reflection.AssemblyInformationalVersion("0.6.0")]
 
 namespace CodexDragon
 {
-    internal enum PetAction { None, Tea, Blink, Stretch, Drag, Land, Celebrate, Pet, Hop, Greet }
+    internal enum PetAction { None, Tea, Blink, Stretch, Drag, Land, Celebrate, Pet, Hop, Greet, Sleep, Wake, Walk, Feed }
 
     // Monotonic elapsed time keeps poses independent of dispatcher delays and wall-clock changes.
     internal sealed class ActionPlayback
@@ -24,10 +24,21 @@ namespace CodexDragon
         public double Elapsed { get; private set; }
         public int Frame { get { return -1; } }
         public double Duration { get; private set; }
+        private PetAction afterWake;
         public double Progress { get { return Duration == 0 ? 0 : Math.Min(1, Elapsed / Duration); } }
         public bool Start(PetAction next)
         {
             if (next == PetAction.None) return false;
+            if (next == PetAction.Wake && Current != PetAction.Sleep) return false;
+            if (Current == next && (next == PetAction.Sleep || next == PetAction.Walk || next == PetAction.Feed)) return false;
+            if ((next == PetAction.Sleep || next == PetAction.Walk || next == PetAction.Feed) &&
+                (Current == PetAction.Drag || Current == PetAction.Land || Current == PetAction.Wake)) return false;
+            if (Current == PetAction.Sleep && next != PetAction.Drag && next != PetAction.Celebrate)
+            {
+                if (next == PetAction.Blink || next == PetAction.Stretch) return false;
+                afterWake = next == PetAction.Wake ? PetAction.None : next;
+                Current = PetAction.Wake; Elapsed = 0; Duration = 2400; return true;
+            }
             if ((next == PetAction.Pet || next == PetAction.Hop || next == PetAction.Greet) && Current != PetAction.None &&
                 Current != PetAction.Blink && Current != PetAction.Stretch) return false;
             if (next == PetAction.Celebrate && (Current == PetAction.Drag || Current == PetAction.Land))
@@ -37,6 +48,7 @@ namespace CodexDragon
             if ((next == PetAction.Blink || next == PetAction.Stretch) && Current != PetAction.None) return false;
             if (next == PetAction.Tea && (Current == PetAction.Drag || Current == PetAction.Land)) return false;
             Current = next; Elapsed = 0;
+            afterWake = PetAction.None;
             switch (next)
             {
                 case PetAction.Tea:
@@ -49,6 +61,14 @@ namespace CodexDragon
                     Duration = 1100; break;
                 case PetAction.Greet:
                     Duration = 1900; break;
+                case PetAction.Sleep:
+                    Duration = 2200; break;
+                case PetAction.Wake:
+                    Duration = 2400; break;
+                case PetAction.Walk:
+                    Duration = 4000; break;
+                case PetAction.Feed:
+                    Duration = 5600; break;
                 case PetAction.Stretch:
                     Duration = 2270; break;
                 case PetAction.Drag:
@@ -64,17 +84,19 @@ namespace CodexDragon
         {
             if (Current == PetAction.None || milliseconds <= 0) return;
             Elapsed += milliseconds;
-            if (Current == PetAction.Drag || Elapsed < Duration) return;
+            if (Current == PetAction.Drag || Current == PetAction.Sleep || Elapsed < Duration) return;
             bool celebrate = CelebrationPending;
+            PetAction next = afterWake;
             Cancel();
             if (celebrate) Start(PetAction.Celebrate);
+            else if (next != PetAction.None) Start(next);
         }
-        public void Cancel() { Current = PetAction.None; Elapsed = 0; CelebrationPending = false; }
+        public void Cancel() { Current = PetAction.None; Elapsed = 0; CelebrationPending = false; afterWake = PetAction.None; }
     }
 
     public sealed partial class PetWindow
     {
-        internal const string LocalVersion = "0.5.0";
+        internal const string LocalVersion = "0.6.0";
         private readonly ActionPlayback action = new ActionPlayback();
         private readonly ScaleTransform actionScale = new ScaleTransform(1, 1);
         private readonly TranslateTransform actionOffset = new TranslateTransform();
@@ -86,6 +108,8 @@ namespace CodexDragon
         private DateTime nextIdleAction = DateTime.UtcNow.AddSeconds(8);
         private bool nextIdleStretch, suppressClick;
         private string observedRunningTurn = "";
+        private bool walkActive;
+        private double walkStart, walkEnd;
 
         private void InitializeActions()
         {
@@ -110,17 +134,39 @@ namespace CodexDragon
         private void AdvanceAction()
         {
             double now = actionClock.Elapsed.TotalMilliseconds;
+            PetAction previous = action.Current;
             action.Advance(now - actionLastTick); actionLastTick = now;
+            if (previous == PetAction.Walk && action.Current == PetAction.None && walkActive) Left = walkEnd;
+            if (previous != action.Current) { actionClock.Restart(); actionLastTick = 0; }
             if (action.Current == PetAction.None) { StopAction(); return; }
             RenderAction();
         }
         private void RenderAction()
         {
+            if (action.Current == PetAction.Walk && !walkActive)
+            {
+                var source = PresentationSource.FromVisual(this);
+                Matrix toDevice = source != null && source.CompositionTarget != null ? source.CompositionTarget.TransformToDevice : Matrix.Identity;
+                Matrix fromDevice = toDevice; fromDevice.Invert();
+                Point center = toDevice.Transform(new Point(Left + Width / 2, Top + Height / 2));
+                var screen = System.Windows.Forms.Screen.FromPoint(new System.Drawing.Point((int)center.X, (int)center.Y)).WorkingArea;
+                Point min = fromDevice.Transform(new Point(screen.Left, screen.Top));
+                Point max = fromDevice.Transform(new Point(screen.Right, screen.Bottom));
+                walkStart = Left;
+                double distance = 100 * settings.Scale;
+                walkEnd = Math.Max(min.X, Math.Min(max.X - Width, Left + (max.X - Width - Left >= distance ? distance : -distance)));
+                walkActive = true;
+            }
+            if (walkActive)
+            {
+                if (action.Current != PetAction.Walk) { walkActive = false; ClampPosition(); SavePosition(); }
+            }
             RefreshLayeredPet();
         }
         private void StopAction()
         {
             action.Cancel(); actionClock.Stop();
+            if (walkActive) { walkActive = false; ClampPosition(); SavePosition(); }
             if (actionTimer != null) actionTimer.Stop();
             actionScale.ScaleX = actionScale.ScaleY = 1; actionOffset.Y = 0;
             interactionBubbleOffset.Y = 0;
@@ -142,6 +188,31 @@ namespace CodexDragon
             if (PlayAction(PetAction.Greet) || settings.ReduceMotion)
                 Say("打个招呼", "嗯，我在。今天也陪着你。", 5);
         }
+        internal void Rest()
+        {
+            if (PlayAction(PetAction.Sleep) || settings.ReduceMotion)
+                Say("休息一会儿", "我眯一会儿。点我一下，就醒来陪你。", 5);
+        }
+        internal void WakeUp()
+        {
+            if (PlayAction(PetAction.Wake) || settings.ReduceMotion)
+                Say("醒来啦", "睡醒了，继续陪你。", 5);
+        }
+        internal void ShowAwake()
+        {
+            Show();
+            if (action.Current == PetAction.Sleep) WakeUp();
+        }
+        internal void WalkAround()
+        {
+            if (PlayAction(PetAction.Walk) || settings.ReduceMotion)
+                Say("活动一下", "在旁边走几步，马上就好。", 5);
+        }
+        internal void Feed()
+        {
+            if (PlayAction(PetAction.Feed) || settings.ReduceMotion)
+                Say("收到小点心", "啊呜，谢谢你的投喂。", 6);
+        }
         internal void BeginPetDrag()
         { clickTimer.Stop(); dragging = true; PlayAction(PetAction.Drag); }
         internal void EndPetDrag()
@@ -158,7 +229,7 @@ namespace CodexDragon
             string key = selected != null && selected.Running ? selected.Id + ":" + selected.TurnId : "";
             if (key.Length > 0 && key != observedRunningTurn)
             {
-                if (!dragging) StopAction();
+                if (!dragging) { if (action.Current == PetAction.Sleep) WakeUp(); else StopAction(); }
                 else { action.Cancel(); PlayAction(PetAction.Drag); }
                 if (speechTitle == "本轮工作结束啦") speechUntil = DateTime.MinValue;
             }

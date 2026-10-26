@@ -16,8 +16,8 @@ public static class UiIntegration
 {
     private const string ThreadId = "00000000-0000-0000-0000-000000000123";
     private static int failures;
-    private static string Record(string payload)
-    { return "{\"timestamp\":\"" + DateTime.UtcNow.ToString("o") + "\",\"type\":\"event_msg\",\"payload\":" + payload + "}\n"; }
+    private static string Record(string payload, DateTime? at = null)
+    { return "{\"timestamp\":\"" + (at ?? DateTime.UtcNow).ToString("o") + "\",\"type\":\"event_msg\",\"payload\":" + payload + "}\n"; }
     private static void Check(bool condition, string description)
     {
         Console.WriteLine((condition ? "PASS " : "FAIL ") + description);
@@ -44,7 +44,7 @@ public static class UiIntegration
         Environment.SetEnvironmentVariable("CODEX_PET_DATA_DIR", Path.Combine(fixture, "pet-data"));
         string file = Path.Combine(sessions, "rollout-" + ThreadId + ".jsonl");
         string otherFile = Path.Combine(sessions, "rollout-00000000-0000-0000-0000-000000000124.jsonl");
-        File.WriteAllText(otherFile, Record("{\"type\":\"task_started\",\"turn_id\":\"other-turn\"}"), new UTF8Encoding(false));
+        File.WriteAllText(otherFile, Record("{\"type\":\"task_started\",\"turn_id\":\"other-turn\"}", DateTime.UtcNow.AddMinutes(-1)), new UTF8Encoding(false));
         File.WriteAllText(file,
             Record("{\"type\":\"task_started\",\"turn_id\":\"ui-integration-turn\"}") +
             "{\"timestamp\":\"" + DateTime.UtcNow.ToString("o") + "\",\"type\":\"response_item\",\"payload\":{\"type\":\"function_call\",\"name\":\"exec_command\",\"arguments\":\"run tests\"}}\n" +
@@ -54,7 +54,7 @@ public static class UiIntegration
         // Keep live desktop input from renewing speech timers during the scripted test.
         // Routed events below still exercise the real character input handlers.
         var pet = new PetWindow(true) { Title = "Codex 小龙 · 隔离验收演示", IsHitTestVisible = false };
-        int step = 0;
+        int step = 0, foldWaits = 0;
         var timer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(2) };
         timer.Tick += delegate
         {
@@ -113,6 +113,9 @@ public static class UiIntegration
                 {
                     string folded = Path.Combine(evidence, "auto-folded"); pet.SaveEvidence(folded);
                     var state = Json.Parse(File.ReadAllText(Path.Combine(folded, "live-check.json")));
+                    // Selecting the original running chat after another chat completes renews
+                    // its eight-second progress bubble on the next one-second poll.
+                    if (Json.Get(state, "bubbleVisible").Equals(true) && foldWaits++ < 3) { step--; return; }
                     Check(Json.Get(state, "bubbleVisible").Equals(false), "ordinary bubble folds automatically after interaction");
                     File.AppendAllText(file, Record("{\"type\":\"task_complete\",\"turn_id\":\"ui-integration-turn\",\"last_agent_message\":\"任务结果已就绪。\"}"), new UTF8Encoding(false));
                 }

@@ -30,6 +30,8 @@ public static class MotionRenderTests
         var viewport = new Viewport3D { Width = 512, Height = 512, VerticalAlignment = VerticalAlignment.Top,
             Camera = new OrthographicCamera(new Point3D(256, -256, 1000), new Vector3D(0, 0, -1), new Vector3D(0, 1, 0), 576) };
         viewport.Children.Add(rig.Visual); root.Children.Add(viewport);
+        var overlay = new SteamOverlay(rig, 576) { Width = 512, Height = 512, VerticalAlignment = VerticalAlignment.Top };
+        root.Children.Add(overlay);
         var label = new TextBlock { FontFamily = new FontFamily("Microsoft YaHei UI"), FontSize = 19,
             Foreground = new SolidColorBrush(Color.FromRgb(111, 78, 150)), HorizontalAlignment = HorizontalAlignment.Center,
             VerticalAlignment = VerticalAlignment.Bottom, Margin = new Thickness(0, 0, 0, 20) };
@@ -39,7 +41,10 @@ public static class MotionRenderTests
             new Clip(MotionKind.Pet, "摸摸头", 1.4), new Clip(MotionKind.Stretch, "伸个懒腰", 2.27),
             new Clip(MotionKind.Hop, "开心跳一下", 1.1), new Clip(MotionKind.Idle, "一起喝茶", 10, true),
             new Clip(MotionKind.Drag, "轻轻拿起", 1.5), new Clip(MotionKind.Land, "落地缓冲", .46),
-            new Clip(MotionKind.Celebrate, "工作结束啦", 1.7), new Clip(MotionKind.Idle, "回到待机", 1)
+            new Clip(MotionKind.Celebrate, "工作结束啦", 1.7),
+            new Clip(MotionKind.Sleep, "蜷身休息 · 轻轻呼吸", 4.5), new Clip(MotionKind.Wake, "慢慢醒来", 2.4),
+            new Clip(MotionKind.Walk, "走一小段 · 原地步态展示", 4), new Clip(MotionKind.Feed, "捧起点心 · 吃一口 · 收手", 5.6),
+            new Clip(MotionKind.Idle, "回到待机", 1)
         };
         int frame = 0, contactIndex = 0; double time = 0, maxStep = 0;
         Point[] probes = { new Point(220, 160), new Point(300, 195), new Point(260, 250), new Point(180, 300), new Point(370, 400), new Point(270, 482) };
@@ -53,6 +58,7 @@ public static class MotionRenderTests
             for (int i = 0; i < count; i++, time += 1.0 / 60)
             {
                 double seconds = i / 60.0, progress = Math.Min(1, seconds / clip.Duration);
+                if (clip.Kind == MotionKind.Sleep) progress = Math.Min(1, seconds / 2.2);
                 rig.Update(time, clip.Tea ? seconds : -1, false, motion: clip.Kind, progress: progress, seconds: seconds);
                 var current = new Point[probes.Length];
                 for (int p = 0; p < probes.Length; p++)
@@ -62,6 +68,7 @@ public static class MotionRenderTests
                 }
                 previous = current;
                 if (i % 2 != 0) continue;
+                overlay.InvalidateVisual();
                 root.UpdateLayout();
                 var bitmap = new RenderTargetBitmap(512, 570, 96, 96, PixelFormats.Pbgra32); bitmap.Render(root); bitmap.Freeze();
                 var encoder = new PngBitmapEncoder(); encoder.Frames.Add(BitmapFrame.Create(bitmap));
@@ -84,12 +91,24 @@ public static class MotionRenderTests
             "tea-to-drag interruption begins at the exact visible pose");
         rig.Update(100.25, -1, false, motion: MotionKind.Drag, seconds: .25);
         Check(rig.Current.CupOpacity == 0, "interrupted cup fades away within the bounded blend");
-        foreach (MotionKind kind in new[] { MotionKind.Pet, MotionKind.Hop, MotionKind.Stretch, MotionKind.Land, MotionKind.Celebrate, MotionKind.Greet })
+        foreach (MotionKind kind in new[] { MotionKind.Pet, MotionKind.Hop, MotionKind.Stretch, MotionKind.Land, MotionKind.Celebrate, MotionKind.Greet, MotionKind.Wake, MotionKind.Walk, MotionKind.Feed })
         {
             Pose end = Pose.At(0, -1, false); end.ApplyMotion(kind, 1, 3, 0);
             Check(Math.Abs(end.OffsetY) < .00001 && Math.Abs(end.ScaleY - 1) < .00001 && Math.Abs(end.Arms) < .00001 && Math.Abs(end.HeadNod) < .00001,
                 kind + " ends at a settled rest pose");
         }
+        rig.Update(200, -1, false, motion: MotionKind.Sleep, progress: 1, seconds: 4, snap: true);
+        Pose sleeping = rig.Current.Copy();
+        rig.Update(200, -1, false, motion: MotionKind.Drag);
+        Check((rig.Current.Warp(probes[0]) - sleeping.Warp(probes[0])).Length < .00001, "sleep interruption retains the exact visible pose");
+        double interruptionStep = 0;
+        Point last = rig.Current.Warp(probes[0]);
+        for (int i = 1; i <= 60; i++)
+        {
+            rig.Update(200 + i / 60.0, -1, false, motion: MotionKind.Drag, seconds: i / 60.0);
+            Point next = rig.Current.Warp(probes[0]); interruptionStep = Math.Max(interruptionStep, (next - last).Length); last = next;
+        }
+        Check(interruptionStep < 8, "picking up a sleeping pet has a gradual full-body transition");
         double height = Math.Ceiling(contactIndex / 4.0) * 285;
         contact.Measure(new Size(1024, height)); contact.Arrange(new Rect(0, 0, 1024, height)); contact.UpdateLayout();
         var sheet = new RenderTargetBitmap(1024, (int)height, 96, 96, PixelFormats.Pbgra32); sheet.Render(contact);
