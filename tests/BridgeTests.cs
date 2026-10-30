@@ -26,6 +26,17 @@ internal static class BridgeTests
                 File.WriteAllText(file, Record("{\"type\":\"task_started\",\"turn_id\":\"bridge-test\"}", now), new UTF8Encoding(false));
                 now = now.AddSeconds(21); monitor.Poll();
                 Check(BridgeSnapshot.Read(monitor, "", serial, completed).running, "real work event reaches the bridge");
+                File.AppendAllText(file, "{\"type\":\"turn_context\",\"payload\":{\"model\":\"gpt-6.1-sol\",\"effort\":\"ultra\"}}\n", new UTF8Encoding(false));
+                now = now.AddSeconds(21); monitor.Poll();
+                var context = BridgeSnapshot.Read(monitor, "", serial, completed);
+                Check(context.model == "gpt-6.1-sol" && context.reasoningEffort == "ultra", "actual model and effort reach the bridge");
+                File.AppendAllText(file, "{\"type\":\"turn_context\",\"payload\":{\"model\":\"gpt-6-astra\",\"reasoning\":{\"effort\":\"high\"}}}\n", new UTF8Encoding(false));
+                now = now.AddSeconds(21); monitor.Poll();
+                context = BridgeSnapshot.Read(monitor, "", serial, completed);
+                Check(context.model == "gpt-6-astra" && context.reasoningEffort == "high", "changing model and nested effort replaces the old context");
+                File.AppendAllText(file, "{\"type\":\"turn_context\",\"payload\":{\"model\":\"unknown-model\"}}\n", new UTF8Encoding(false));
+                now = now.AddSeconds(21); monitor.Poll();
+                Check(BridgeSnapshot.Read(monitor, "", serial, completed).reasoningEffort == "", "missing effort is not inherited from an earlier turn");
                 File.AppendAllText(file, Record("{\"type\":\"agent_reasoning\",\"text\":\"SECRET INTERNAL CONTENT\"}", now), new UTF8Encoding(false));
                 File.AppendAllText(file, "{\"timestamp\":\"" + now.ToString("o") + "\",\"type\":\"response_item\",\"payload\":{\"type\":\"message\",\"role\":\"assistant\",\"phase\":\"commentary\",\"content\":[{\"type\":\"output_text\",\"text\":\"正在测试接入\"}]}}\n", new UTF8Encoding(false));
                 now = now.AddSeconds(21); monitor.Poll();
@@ -50,6 +61,15 @@ internal static class BridgeTests
             {
                 bool replayed = false; restart.Completed += session => replayed = true; restart.Poll();
                 Check(!replayed, "restart does not replay historical completion");
+            }
+            // Context outside the incremental tail must survive an app restart.
+            File.AppendAllText(file, "{\"type\":\"turn_context\",\"payload\":{\"model\":\"gpt-6-astra\",\"effort\":\"ultra\"}}\n", new UTF8Encoding(false));
+            File.AppendAllText(file, "{\"type\":\"event_msg\",\"payload\":{\"type\":\"agent_reasoning\",\"text\":\"" + new string('x', 3 * 1024 * 1024) + "\"}}\n", new UTF8Encoding(false));
+            using (var restart = new SessionMonitor(fixture))
+            {
+                restart.Poll(); var context = BridgeSnapshot.Read(restart, "", 0, "");
+                Check(context.model == "gpt-6-astra" && context.reasoningEffort == "ultra", "restart recovers execution settings before a long turn tail");
+                Check(!Json.Write(context).Contains(new string('x', 100)), "context recovery never exports reasoning text");
             }
             Console.WriteLine(passed + " bridge checks passed."); return 0;
         }

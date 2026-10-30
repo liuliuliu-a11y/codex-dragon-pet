@@ -1,3 +1,26 @@
+## 当前原生宿主验证
+
+0.8.1 使用 .NET 8 / VPet 宿主。以下套件在隔离设置和测试数据下运行：
+
+- `tests/BridgeTests.cs`：公开状态、模型和思考强度、长聊天重启恢复、完成通知和额度。
+- `tests/VPetChromeTests`：实际窗口六档形态、快速切换、菜单与气泡、聊天样式、拖动控制和落地后的完成提醒。
+- `tests/VPetMotionTests`：33 段动画替换、连续帧变化、工作保持动作、睡醒打断和形态解码。
+- `tests/VPetLifeTests`：聊天、回复动作、安静模式、提案和未读结果行为。
+- 原 `build.ps1 -Test`：继续检查共享的状态解析和旧版互动逻辑。
+
+构建示例：
+
+```powershell
+dotnet build tests/VPetChromeTests/VPetChromeTests.csproj -c Release -o tmp/chrome-test
+```
+
+运行测试前，把当前运行素材 `assets` 放入测试输出目录，再给测试程序传入独立的结果目录。小G请求使用夹具传输，测试不修改现用聊天或切换用户的真实模型。
+
+拖动控制测试保留首段位移、释放、落地与不误触单击的检查。操作工具未能识别透明桌宠窗口，物理鼠标拖拽、多屏与跨 DPI 手工验收仍待完成。逐档 GIF 是形态截图对照；动作 MP4 为程序渲染帧合成。
+
+---
+
+以下为旧版分层 WPF 实现的验证说明。
 # 测试说明
 
 在 Windows 的交互式桌面会话中执行：

@@ -91,7 +91,7 @@ internal static class PackWhiteDragon
         Directory.CreateDirectory(output);
         var walkSleep = Read("walk-sleep"); var idlePet = Read("idle-pet"); var liftWave = Read("lift-wave");
         var teaFood = Read("tea-food"); var workThink = Read("work-think");
-        Write("Default/idle/Nomal", idlePet, Range(0, 8), new[] { 1700, 120, 90, 80, 90, 120, 240, 900 });
+        Write("Default/idle/Nomal", idlePet, Range(0, 8), new[] { 6500, 120, 90, 80, 90, 120, 240, 3000 });
         Write("Touch_Head/pet/A_Nomal", idlePet, new[] { 8, 9 }, new[] { 160, 160 });
         Write("Touch_Head/pet/B_Nomal", idlePet, new[] { 10, 11, 12, 11 }, new[] { 220, 220, 220, 220 });
         Write("Touch_Head/pet/C_Nomal", idlePet, new[] { 13, 14, 15 }, new[] { 160, 160, 180 });

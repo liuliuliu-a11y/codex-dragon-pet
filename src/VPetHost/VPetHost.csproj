@@ -8,7 +8,7 @@
     <ImplicitUsings>disable</ImplicitUsings>
     <AssemblyName>CodexVPet</AssemblyName>
     <RootNamespace>CodexVPet</RootNamespace>
-    <Version>0.7.0</Version>
+    <Version>0.8.1</Version>
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <StartupObject>CodexVPet.Program</StartupObject>
   </PropertyGroup>

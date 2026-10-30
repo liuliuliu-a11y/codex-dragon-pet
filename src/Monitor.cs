@@ -124,6 +124,9 @@ namespace CodexDragon
                         catch (ArgumentException) { }
                         catch (InvalidOperationException) { }
                     }
+                    // Long turns can put turn_context before the 2 MiB event
+                    // tail. Recover the latest execution settings on restart.
+                    if (fresh || truncated) ReadLatestContext(file, session);
                     if (new FileInfo(file).Length > cursors[file].Position) dirty[file] = 0;
                 }
                 catch (IOException) { }
@@ -177,6 +180,40 @@ namespace CodexDragon
                 }
             }
             catch (IOException) { } catch (ArgumentException) { } catch (InvalidOperationException) { } catch (UnauthorizedAccessException) { }
+        }
+        private static void ReadLatestContext(string file, Session session)
+        {
+            using (var stream = new FileStream(file, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete))
+            {
+                long end = stream.Length, remaining = 64L * 1024 * 1024;
+                string carry = "";
+                while (end > 0 && remaining > 0)
+                {
+                    int count = (int)Math.Min(end, 1024 * 1024);
+                    long start = end - count;
+                    byte[] data = new byte[count]; stream.Position = start;
+                    int read = 0, n;
+                    while (read < count && (n = stream.Read(data, read, count - read)) > 0) read += n;
+                    string chunk = Encoding.UTF8.GetString(data, 0, read) + carry;
+                    int boundary = chunk.IndexOf('\n');
+                    string whole = start == 0 ? chunk : boundary < 0 ? "" : chunk.Substring(boundary + 1);
+                    var lines = whole.Split('\n');
+                    for (int i = lines.Length - 1; i >= 0; i--)
+                    {
+                        string line = lines[i];
+                        if (line.Length > LogCursor.MaxLine || line.IndexOf("\"turn_context\"", 0, Math.Min(line.Length, 256), StringComparison.Ordinal) < 0) continue;
+                        try
+                        {
+                            var entry = Json.Parse(line);
+                            if (entry != null && Json.Text(entry, "type") == "turn_context") { session.Apply(entry, true, null); return; }
+                        }
+                        catch (ArgumentException) { } catch (InvalidOperationException) { }
+                    }
+                    carry = boundary < 0 ? chunk : chunk.Substring(0, boundary);
+                    if (carry.Length > LogCursor.MaxLine) carry = "";
+                    end = start; remaining -= count;
+                }
+            }
         }
         public void SetQuota(Quota quota)
         {

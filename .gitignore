@@ -22,6 +22,12 @@ venv/
 diagnostics.json
 src/VPetHost/bin/
 src/VPetHost/obj/
+tests/VPetLifeTests/bin/
+tests/VPetLifeTests/obj/
+tests/**/bin/
+tests/**/obj/
+tmp/
+**/companion-link.json
 *.zip
 *.exe
 assets/dragon-sprites.png

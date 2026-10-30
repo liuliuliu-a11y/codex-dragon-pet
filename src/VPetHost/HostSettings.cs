@@ -11,9 +11,9 @@ internal sealed class HostSettings
     public double? Left { get; set; }
     public double? Top { get; set; }
     public bool Topmost { get; set; } = true;
-    public bool Roam { get; set; } = true;
+    public bool Roam { get; set; } = false;
     public bool Roaming { get => Roam; set => Roam = value; }
-    public bool Quiet { get; set; }
+    public bool Quiet { get; set; } = true;
     public static string Folder => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "CodexDragonPet");
     private static string FilePath => Path.Combine(Folder, "vpet-host.json");
     public static HostSettings Load()
@@ -33,6 +33,9 @@ internal sealed class HostSettings
 internal sealed class BridgeState
 {
     public string version { get; set; } = "";
+    public string model { get; set; } = "";
+    public string reasoningEffort { get; set; } = "";
+    public string sessionId { get; set; } = "";
     public bool connected { get; set; }
     public bool running { get; set; }
     public bool finishing { get; set; }

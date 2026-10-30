@@ -8,9 +8,9 @@ using System.Windows.Media.Animation;
 using System.Windows.Media.Imaging;
 using System.Windows.Threading;
 
-[assembly: System.Reflection.AssemblyVersion("0.6.0.0")]
-[assembly: System.Reflection.AssemblyFileVersion("0.6.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersion("0.6.0")]
+[assembly: System.Reflection.AssemblyVersion("0.7.0.1")]
+[assembly: System.Reflection.AssemblyFileVersion("0.7.0.1")]
+[assembly: System.Reflection.AssemblyInformationalVersion("0.7.0-local.1")]
 
 namespace CodexDragon
 {
@@ -96,7 +96,7 @@ namespace CodexDragon
 
     public sealed partial class PetWindow
     {
-        internal const string LocalVersion = "0.6.0";
+        internal const string LocalVersion = "0.7.0-local.1";
         private readonly ActionPlayback action = new ActionPlayback();
         private readonly ScaleTransform actionScale = new ScaleTransform(1, 1);
         private readonly TranslateTransform actionOffset = new TranslateTransform();
@@ -175,28 +175,28 @@ namespace CodexDragon
         }
         internal void DrinkTea()
         {
-            if (PlayAction(PetAction.Tea)) Say("一起喝杯茶", "呼——慢慢来，陪你歇一小会儿。", 11);
-            else if (settings.ReduceMotion) Say("一起喝杯茶", "收到这杯茶，暖暖的。", 5);
+            if (PlayAction(PetAction.Tea)) { RecordLifeInteraction("tea"); Say("一起喝杯茶", "呼——慢慢来，陪你歇一小会儿。", 11); }
+            else if (settings.ReduceMotion) { RecordLifeInteraction("tea"); Say("一起喝杯茶", "收到这杯茶，暖暖的。", 5); }
         }
         internal void HappyHop()
         {
             if (PlayAction(PetAction.Hop) || settings.ReduceMotion)
-                Say("开心一下", "给你一点小龙的元气！", 5);
+            { RecordLifeInteraction("hop"); Say("开心一下", "给你一点小龙的元气！", 5); }
         }
         internal void Greet()
         {
             if (PlayAction(PetAction.Greet) || settings.ReduceMotion)
-                Say("打个招呼", "嗯，我在。今天也陪着你。", 5);
+            { RecordLifeInteraction("greet"); Say("打个招呼", "嗯，我在。今天也陪着你。", 5); }
         }
         internal void Rest()
         {
             if (PlayAction(PetAction.Sleep) || settings.ReduceMotion)
-                Say("休息一会儿", "我眯一会儿。点我一下，就醒来陪你。", 5);
+            { RecordLifeInteraction("rest"); Say("休息一会儿", "我眯一会儿。点我一下，就醒来陪你。", 5); }
         }
         internal void WakeUp()
         {
             if (PlayAction(PetAction.Wake) || settings.ReduceMotion)
-                Say("醒来啦", "睡醒了，继续陪你。", 5);
+            { RecordLifeInteraction("wake"); Say("醒来啦", "睡醒了，继续陪你。", 5); }
         }
         internal void ShowAwake()
         {
@@ -206,12 +206,12 @@ namespace CodexDragon
         internal void WalkAround()
         {
             if (PlayAction(PetAction.Walk) || settings.ReduceMotion)
-                Say("活动一下", "在旁边走几步，马上就好。", 5);
+            { RecordLifeInteraction("walk"); Say("活动一下", "在旁边走几步，马上就好。", 5); }
         }
         internal void Feed()
         {
             if (PlayAction(PetAction.Feed) || settings.ReduceMotion)
-                Say("收到小点心", "啊呜，谢谢你的投喂。", 6);
+            { RecordLifeInteraction("feed"); Say("收到小点心", "啊呜，谢谢你的投喂。", 6); }
         }
         internal void BeginPetDrag()
         { clickTimer.Stop(); dragging = true; PlayAction(PetAction.Drag); }

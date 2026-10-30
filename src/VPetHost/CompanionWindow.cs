@@ -21,7 +21,7 @@ using static VPet_Simulator.Core.GraphInfo;
 
 namespace CodexVPet;
 
-internal sealed class CompanionWindow : Window, IController
+internal sealed partial class CompanionWindow : Window, IController
 {
     private readonly string profile, settingsFile, snapshotFile;
     private readonly bool demo;
@@ -33,6 +33,7 @@ internal sealed class CompanionWindow : Window, IController
     private readonly DispatcherTimer poll = new() { Interval = TimeSpan.FromSeconds(1.5) };
     private PetMain? pet;
     private GameCore? core;
+    private SmoothSpritePlayer? smoothSprites;
     private Process? bridge;
     private DateTime nextBridgeAttempt = DateTime.MinValue, minimumSnapshotAt = DateTime.MinValue;
     private int bridgeFailures, bridgeStarts, notificationCount;
@@ -58,6 +59,7 @@ internal sealed class CompanionWindow : Window, IController
         settingsFile = Path.Combine(profile, "vpet-host.json");
         snapshotFile = Path.Combine(profile, "vpet-status.json");
         try { if (File.Exists(settingsFile)) settings = JsonSerializer.Deserialize<HostSettings>(File.ReadAllText(settingsFile)) ?? settings; } catch (JsonException) { }
+        if (demo) settings.Quiet = false;
         settings.Size = Math.Clamp(settings.Size, 150, 340);
         Title = "Codex 桌面伙伴 · VPet"; WindowStyle = WindowStyle.None; ResizeMode = ResizeMode.NoResize;
         AllowsTransparency = true; Background = Brushes.Transparent; Topmost = settings.Topmost; ShowInTaskbar = false;
@@ -65,23 +67,18 @@ internal sealed class CompanionWindow : Window, IController
         scene.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
         scene.RowDefinitions.Add(new RowDefinition { Height = new GridLength(26) });
         statusPill = new Border { Background = new SolidColorBrush(Color.FromArgb(237, 255, 252, 255)), CornerRadius = new CornerRadius(11), Padding = new Thickness(10, 5, 10, 4), Margin = new Thickness(8, 0, 8, 2), Child = status, Cursor = Cursors.Hand };
-        statusPill.MouseLeftButtonUp += (_, _) => ShowStatus();
         Grid.SetRow(statusPill, 1); scene.Children.Add(statusPill); Content = scene;
         Loaded += async (_, _) => await Initialize();
         Closing += (_, _) => { if (!demo) SaveSettings(); Cleanup(); };
         LocationChanged += (_, _) => { if (ready && !demo) positionDirty = true; };
         poll.Tick += (_, _) => { ReadState(); if (positionDirty) SaveSettings(); };
         ContextMenu = BuildMenu();
-        PreviewMouseRightButtonDown += (_, e) => { e.Handled = true; ContextMenu = BuildMenu(); ContextMenu.IsOpen = true; };
-        PreviewMouseLeftButtonDown += (_, _) =>
-        {
-            if (pet?.DisplayType.Type != GraphType.Move || core?.Graph == null) return;
-            // A native short click or long-press may choose different actions.
-            // Retire the walk now, then let the core's hit area choose that action.
-            interactionGeneration++; transitionActive = false; pointerPaused = true;
-            StopAutonomousControls();
-        };
-        IsVisibleChanged += (_, _) => ApplyAutonomy();
+        PreviewMouseRightButtonDown += (_, e) => { e.Handled = true; HideSpeech(); ContextMenu = BuildMenu(); ContextMenu.PlacementTarget = this; ContextMenu.IsOpen = true; };
+        PreviewMouseLeftButtonDown += PetPointerDown;
+        PreviewMouseMove += PetPointerMove;
+        PreviewMouseLeftButtonUp += PetPointerUp;
+        LostMouseCapture += PetPointerCaptureLost;
+        IsVisibleChanged += (_, _) => { if (!IsVisible) HideSpeech(); ApplyAutonomy(); };
     }
 
     private async Task Initialize()
@@ -103,12 +100,18 @@ internal sealed class CompanionWindow : Window, IController
         core = new GameCore { Controller = this, Save = new GameSave(characterName) };
         core.Save.Mode = IGameSave.ModeType.Nomal;
         core.Graph = loader.Graph(500, Dispatcher);
+        string forms = Path.Combine(AppContext.BaseDirectory, "assets", "dragon-forms");
+        if (Directory.Exists(forms))
+        {
+            smoothSprites = new SmoothSpritePlayer(forms, Dispatcher, () => lifeSettings.ReduceMotion, () => IsVisible);
+            smoothSprites.Install(core.Graph);
+        }
         pet = new PetMain(core) { NoFunctionMOD = IGameSave.ModeType.Nomal, Width = 500, Height = 500 };
         core.Save.Mode = IGameSave.ModeType.Nomal;
         pet.GraphDisplayHandler += graph =>
         {
             observedGraphs.AddOrUpdate(graph.Type + ":" + graph.Name + ":" + graph.Animat, 1, (_, count) => count + 1);
-            if (pointerPaused && graph.Type != GraphType.Move)
+            if (pointerPaused && !pointerPressed && !pointerDragging && graph.Type != GraphType.Move)
                 Dispatcher.BeginInvoke(new Action(() => { pointerPaused = false; ApplyAutonomy(); }));
         };
         pet.Event_MoveEnd += _ => pet.MoveTimerSmartMove = !demo && settings.Roaming && !settings.Quiet;
@@ -127,7 +130,7 @@ internal sealed class CompanionWindow : Window, IController
         if (!settings.Quiet && !demo) pet.EventTimer.Start();
         workName = core.Graph.GraphsName.TryGetValue(GraphType.Work, out var names) ? names.FirstOrDefault(n => n.Contains("study", StringComparison.OrdinalIgnoreCase)) ?? names.FirstOrDefault() ?? "" : "";
         ready = true; status.Text = "准备好了，陪你工作";
-        SetupTray();
+        SetupTray(); InitializeLife();
         if (demo) StartDemo();
         else
         {
@@ -185,6 +188,7 @@ internal sealed class CompanionWindow : Window, IController
         message.Resources["PrimaryText"] = ink;
         message.Resources["DARKPrimaryText"] = ink;
         message.Foreground = ink;
+        InitializeSpeech(message);
         message.FontFamily = new FontFamily("Microsoft YaHei UI");
         if (message.FindName("BorderMain") is Border border)
         {
@@ -225,6 +229,8 @@ internal sealed class CompanionWindow : Window, IController
             { status.Text = "工作连接恢复中 · 继续陪着你"; SetWorking(false); RecoverStaleBridge(); return; }
             bridgeFailures = 0;
             current = snapshot;
+            smoothSprites?.SetContext(snapshot.model, snapshot.reasoningEffort);
+            statusPill.ToolTip = "拖动移动 · 单击查看状态\n" + (snapshot.model.Length == 0 ? "等待当前轮模型信息" : snapshot.model + " · " + snapshot.reasoningEffort);
             string title = snapshot.running ? snapshot.finishing ? "正在收尾" : Short(snapshot.stage, 15) : snapshot.connected ? "我在这里，随时陪你" : "等待 Codex 开始工作";
             status.Text = title + (snapshot.quotaUsed.HasValue ? " · " + snapshot.quotaUsed.Value.ToString("0") + "%" : "");
             statusPill.ToolTip = Short(snapshot.title, 80) + "\n" + Short(snapshot.message, 180);
@@ -263,7 +269,7 @@ internal sealed class CompanionWindow : Window, IController
     private void WorkLoop()
     {
         if (pet == null || transitionActive || disposed) return;
-        if (working) pet.Display(workName, AnimatType.B_Loop, GraphType.Work, WorkLoop);
+        if (working && !settings.Quiet) pet.Display(workName, AnimatType.B_Loop, GraphType.Work, WorkLoop);
         else pet.DisplayDefault();
     }
     private void ResumeDefault()
@@ -274,7 +280,7 @@ internal sealed class CompanionWindow : Window, IController
     private void ApplyAutonomy()
     {
         if (!ready || pet == null || disposed) return;
-        bool enabled = IsVisible && !demo && !settings.Quiet && !transitionActive;
+        bool enabled = IsVisible && !demo && !settings.Quiet && !transitionActive && !pointerPressed && !pointerDragging;
         if (enabled) pet.EventTimer.Start(); else pet.EventTimer.Stop();
         pet.SetMoveMode(enabled && settings.Roaming, false, 20000);
         if (!enabled) { pet.MoveTimer.Stop(); pet.MoveTimerSmartMove = false; }
@@ -282,9 +288,11 @@ internal sealed class CompanionWindow : Window, IController
     private void Wake(Action? after = null)
     {
         if (pet == null || core?.Graph == null || core.Save == null || disposed) return;
+        if (pointerDragging) return;
         if (!Dispatcher.CheckAccess()) { Dispatcher.BeginInvoke(new Action(() => Wake(after))); return; }
         int generation = ++interactionGeneration;
         string previousName = pet.DisplayType.Name;
+        bool endingFinished = pet.DisplayType.Animat == AnimatType.C_End && FindNamedGraph(previousName, AnimatType.C_End)?.Control?.PlayState != true;
         transitionActive = true;
         StopAutonomousControls();
         pet.State = PetMain.WorkingState.Nomal;
@@ -295,7 +303,7 @@ internal sealed class CompanionWindow : Window, IController
             ApplyAutonomy();
             (after ?? pet.DisplayToNomal)();
         }));
-        IGraph? ending = FindNamedGraph(previousName, AnimatType.C_End);
+        IGraph? ending = endingFinished ? null : FindNamedGraph(previousName, AnimatType.C_End);
         if (ending != null) pet.Display(ending, continueAction); else continueAction();
     }
     private void StopAutonomousControls()
@@ -316,9 +324,9 @@ internal sealed class CompanionWindow : Window, IController
         if (pendingCompletion) { pendingCompletion = false; CelebrateCompletion(); }
         else Wake();
     }
-    private void TouchHead() { Wake(() => pet?.DisplayToTouchHead()); }
-    private void TouchBody() { Wake(() => pet?.DisplayToTouchBody()); }
-    private void Sleep() { if (ready) Wake(() => pet?.DisplaySleep(true)); }
+    private void TouchHead() { Wake(() => { pet?.DisplayToTouchHead(); RecordLifeInteraction("pet"); }); }
+    private void TouchBody() { Wake(() => { pet?.DisplayToTouchBody(); RecordLifeInteraction("greet"); }); }
+    private void Sleep() { if (ready) Wake(() => { pet?.DisplaySleep(true); RecordLifeInteraction("rest"); }); }
     private void Walk()
     {
         Wake(() =>
@@ -326,6 +334,7 @@ internal sealed class CompanionWindow : Window, IController
             if (pet == null) return;
             pet.MoveTimerSmartMove = true;
             if (!pet.DisplayToMove()) { pet.MoveTimerSmartMove = !demo && settings.Roaming && !settings.Quiet; pet.Say("这里有点挤，换个位置再走走吧。"); }
+            else RecordLifeInteraction("walk");
         });
     }
     private void Feed(bool drink)
@@ -339,6 +348,7 @@ internal sealed class CompanionWindow : Window, IController
             {
                 status.Text = drink ? "一起喝杯茶，慢慢来" : "收到小点心，啊呜——";
                 pet.Display(ownAnimation, pet.DisplayToNomal);
+                RecordLifeInteraction(drink ? "tea" : "feed");
             });
             return;
         }
@@ -349,6 +359,7 @@ internal sealed class CompanionWindow : Window, IController
         {
             status.Text = drink ? "一起喝口水，慢慢来" : "收到小点心，啊呜——";
             pet.Display(name, MakeFoodImage(drink), pet.DisplayToNomal);
+            RecordLifeInteraction(drink ? "tea" : "feed");
         });
     }
     private IGraph? FindNamedGraph(string name, AnimatType animation = AnimatType.Single)
@@ -359,12 +370,13 @@ internal sealed class CompanionWindow : Window, IController
         return core.Graph.GraphsALL
             .Where(graph => string.Equals(graph.GraphInfo.Name, name, StringComparison.OrdinalIgnoreCase) && graph.GraphInfo.Animat == animation)
             .OrderByDescending(graph => graph.GraphInfo.ModeType == core.Save.Mode)
-            .FirstOrDefault() ?? core.Graph.FindGraph(name, animation, core.Save.Mode);
+            .FirstOrDefault();
     }
     private void CelebrateCompletion()
     {
         if (pet == null) return;
         working = false;
+        if (pointerDragging) { pendingCompletion = true; return; }
         Wake(() =>
         {
             Action notify = () => pet.SayRnd("本轮工作完成啦，回来看看结果吧。", true);
@@ -411,25 +423,27 @@ internal sealed class CompanionWindow : Window, IController
 
     private ContextMenu BuildMenu()
     {
-        var menu = new ContextMenu { FontFamily = new FontFamily("Microsoft YaHei UI"), FontSize = 13 };
-        void Add(string text, Action action) { var item = new MenuItem { Header = text }; item.Click += (_, _) => action(); menu.Items.Add(item); }
-        Add("摸摸头", TouchHead); Add("拍拍身体", TouchBody); Add("休息一会儿", Sleep); Add("叫醒伙伴", () => Wake()); Add("出去走走", Walk);
-        Add("喂一块点心", () => Feed(false)); Add("一起喝杯茶", () => Feed(true));
-        menu.Items.Add(new Separator()); Add("工作状态与额度", ShowStatus);
-        var sizes = new MenuItem { Header = "调整大小" };
+        var menu = CreatePetMenu();
+        MenuItem Add(ItemsControl owner, string text, Action action, bool check = false) { var item = new MenuItem { Header = text, IsChecked = check }; item.Click += (_, _) => action(); owner.Items.Add(item); return item; }
+        menu.Items.Add(new MenuItem { Header = new TextBlock { Text = characterName, FontSize = 11, FontWeight = FontWeights.SemiBold, Foreground = new SolidColorBrush(Color.FromRgb(125,105,144)) }, IsEnabled = false, MinHeight = 24 });
+        Add(menu, "和小G聊聊", OpenLifeChat); Add(menu, "摸摸头", TouchHead);
+        var interact = new MenuItem { Header = "更多互动" }; menu.Items.Add(interact);
+        Add(interact, "一起喝茶", () => Feed(true)); Add(interact, "喂一块点心", () => Feed(false)); Add(interact, "拍拍身体", TouchBody);
+        Add(interact, "休息一会儿", Sleep); Add(interact, "叫醒伙伴", () => { Wake(); RecordLifeInteraction("wake"); }); Add(interact, "出去走走", Walk);
+        menu.Items.Add(new Separator());
+        var companion = new MenuItem { Header = "陪伴设置" }; menu.Items.Add(companion);
+        Add(companion, "安静陪伴", () => { settings.Quiet = !settings.Quiet; ApplyAutonomy(); SaveSettings(); }, settings.Quiet);
+        Add(companion, "允许自主走动", () => { settings.Roaming = !settings.Roaming; ApplyAutonomy(); SaveSettings(); }, settings.Roaming);
+        AddLifeMenu(companion);
+        var sizes = new MenuItem { Header = "大小与位置" }; menu.Items.Add(sizes);
         foreach (double size in new[] { 150d, 180, 200, 240, 280, 340 })
         { double value = size; var item = new MenuItem { Header = size + " 像素", IsChecked = Math.Abs(settings.Size - size) < .1 }; item.Click += (_, _) => { settings.Size = value; Width = value; Height = value + 26; Clamp(); SaveSettings(); }; sizes.Items.Add(item); }
-        menu.Items.Add(sizes);
-        Add(settings.Roaming ? "暂停自主走动" : "允许自主走动", () => { settings.Roaming = !settings.Roaming; pet?.SetMoveMode(settings.Roaming && !settings.Quiet, false, 20000); SaveSettings(); });
-        Add(settings.Quiet ? "恢复日常陪伴" : "安静陪伴", () =>
-        {
-            settings.Quiet = !settings.Quiet;
-            if (pet != null) { pet.SetMoveMode(settings.Roaming && !settings.Quiet, false, 20000); if (settings.Quiet) pet.EventTimer.Stop(); else pet.EventTimer.Start(); }
-            SaveSettings();
-        });
-        Add("回到屏幕右下角", () => { var area = WorkArea(); Left = area.Right - Width - 24; Top = area.Bottom - Height - 12; Clamp(); SaveSettings(); });
-        Add("角色来源与关于", () => MessageBox.Show("角色：" + characterName + "\n" + characterCredit + "\n\n动画内核：VPet-Simulator.Core\nhttps://github.com/LorisYounger/VPet\n\n本程序接入本机 Codex 的公开工作状态、完成提醒与额度。角色图形、动作素材与动画内核分别依照各自资源声明使用。", "关于桌面伙伴"));
-        menu.Items.Add(new Separator()); Add("收起到托盘", Hide); Add("退出", Close); return menu;
+        sizes.Items.Add(new Separator());
+        Add(sizes, "回到屏幕右下角", () => { var area = WorkArea(); Left = area.Right - Width - 24; Top = area.Bottom - Height - 12; Clamp(); SaveSettings(); });
+        Add(sizes, "窗口置顶", () => { settings.Topmost = !settings.Topmost; Topmost = settings.Topmost; SaveSettings(); }, settings.Topmost);
+        Add(menu, "工作状态与额度", ShowStatus);
+        Add(companion, "角色来源与关于", () => MessageBox.Show("角色：" + characterName + "\n" + characterCredit + "\n\n动画内核：VPet-Simulator.Core\nhttps://github.com/LorisYounger/VPet", "关于桌面伙伴"));
+        menu.Items.Add(new Separator()); Add(menu, "收起到托盘", Hide); Add(menu, "退出", Close); return menu;
     }
     private void ShowStatus()
     {
@@ -445,6 +459,7 @@ internal sealed class CompanionWindow : Window, IController
         tray = new Forms.NotifyIcon { Text = "Codex 桌面伙伴", Visible = true, Icon = File.Exists(icon) ? new System.Drawing.Icon(icon) : System.Drawing.SystemIcons.Application };
         var menu = new Forms.ContextMenuStrip();
         menu.Items.Add("显示并叫醒伙伴", null, (_, _) => Dispatcher.BeginInvoke(new Action(ShowAwake)));
+        menu.Items.Add("和小G聊聊", null, (_, _) => Dispatcher.BeginInvoke(new Action(OpenLifeChat)));
         menu.Items.Add("工作状态与额度", null, (_, _) => Dispatcher.BeginInvoke(new Action(ShowStatus)));
         menu.Items.Add("退出", null, (_, _) => Dispatcher.BeginInvoke(new Action(Close)));
         tray.ContextMenuStrip = menu; tray.DoubleClick += (_, _) => Dispatcher.BeginInvoke(new Action(ShowAwake));
@@ -511,10 +526,15 @@ internal sealed class CompanionWindow : Window, IController
         if (evidence == null) return;
         SaveImage(Path.Combine(evidence, name + ".png"));
         File.WriteAllText(Path.Combine(evidence, name + ".json"), JsonSerializer.Serialize(new {
-            version = "0.7.0", characterName, visible = IsVisible, ready, left = Left, top = Top, width = Width, height = Height,
+            version = typeof(CompanionWindow).Assembly.GetName().Version?.ToString(), characterName, visible = IsVisible, ready, left = Left, top = Top, width = Width, height = Height,
             state = pet?.State.ToString(), graph = pet?.DisplayType.Name, type = pet?.DisplayType.Type.ToString(),
             graphCount = core?.Graph?.GraphsALL.Count, errors = pet?.ErrorMessage, bridgeRunning = bridge != null && !bridge.HasExited,
             bridgePid = bridge != null && !bridge.HasExited ? bridge.Id : 0, bridgeStarts, observedCompletion, notificationCount, pendingCompletion, interactionGeneration, transitionActive,
+            lifeOnline, lifePending, lifeLastEmotion, lifeReplyGestures, lifeChatOpen = lifeChat?.IsVisible == true,
+            form = smoothSprites?.Form, smoothGraphs = smoothSprites?.ReplacedGraphs,
+            pointerPressed, pointerDragging, dragStarts, dragEnds, pointerClicks,
+            animationTicks = smoothSprites?.RenderTicks, animationFrames = smoothSprites?.FramesChanged,
+            maximumAnimationGapMs = smoothSprites?.MaximumTickGap, animationError = smoothSprites?.LastError,
             loadedGraphs = core?.Graph?.GraphsALL.Select(graph => graph.GraphInfo.Type + ":" + graph.GraphInfo.Name + ":" + graph.GraphInfo.Animat).Distinct().ToArray(),
             observedGraphs, current
         }, JsonOptions));
@@ -553,9 +573,10 @@ internal sealed class CompanionWindow : Window, IController
     private void Cleanup()
     {
         if (disposed) return; disposed = true;
+        CleanupLife(); HideSpeech();
         poll.Stop(); demoTimer?.Stop();
         if (pet != null) { pet.SetMoveMode(false, false, 20000); pet.EventTimer.Stop(); pet.MoveTimer.Stop(); }
-        core?.Graph?.Dispose();
+        core?.Graph?.Dispose(); smoothSprites?.Dispose();
         if (bridge != null) { try { if (!bridge.HasExited) bridge.Kill(); } catch (InvalidOperationException) { } bridge.Dispose(); }
         if (tray != null) { tray.Visible = false; tray.Dispose(); }
     }

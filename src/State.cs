@@ -98,6 +98,7 @@ namespace CodexDragon
     public sealed class Session
     {
         public string Id, FilePath, Title = "Codex 聊天", Project = "", TurnId = "", Stage = "在这里陪你", PublicMessage = "", Result = "", Model = "";
+        public string ReasoningEffort = "";
         public Mood Mood = Mood.Idle;
         public bool Running, IsChild;
         public bool Finishing { get; private set; }
@@ -126,7 +127,15 @@ namespace CodexDragon
                 string id = Json.Text(payload, "id", "session_id"); if (id.Length > 0) Id = id;
                 return false;
             }
-            if (kind == "turn_context") { Model = Json.Text(payload, "model"); return false; }
+            if (kind == "turn_context")
+            {
+                // These are public execution settings, never reasoning text.
+                Model = Json.Text(payload, "model");
+                ReasoningEffort = Json.Text(payload, "effort", "reasoning_effort");
+                if (ReasoningEffort.Length == 0)
+                    ReasoningEffort = Json.Text(Json.Map(Json.Get(payload, "reasoning")), "effort");
+                return false;
+            }
             if (kind == "event_msg")
             {
                 string type = Json.Text(payload, "type");
@@ -259,6 +268,8 @@ namespace CodexDragon
         public bool Sound = true, Topmost = true, Bubble = true, SmallTalk = true, Notifications = true;
         public bool AutoBubble = true, ClickThrough, Quiet, ReduceMotion;
         public bool DailyActions = true;
+        public bool LifeLink = true, LifeNotices = true;
+        public string LastLifeMessage = "";
         public string PinnedThread = "";
         public static readonly string Folder = DataFolder();
         private static string DataFolder()

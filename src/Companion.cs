@@ -78,6 +78,7 @@ namespace CodexDragon
         {
             if (action.Current == PetAction.Sleep) { WakeUp(); return; }
             pettingCount++;
+            RecordLifeInteraction("pet");
             string[] replies = { "收到摸摸，继续加油。", "角角有点痒。", "今天也一起加油。" };
             Say("角色碎碎念", replies[random.Next(replies.Length)], 8);
             PlayAction(PetAction.Pet);

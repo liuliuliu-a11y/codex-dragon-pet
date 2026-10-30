@@ -1,7 +1,7 @@
 param([Parameter(Mandatory=$true)][string]$Dotnet,
       [Parameter(Mandatory=$true)][string]$AssetDirectory,
       [Parameter(Mandatory=$true)][string]$OutputDirectory,
-      [switch]$SelfContained, [switch]$Test)
+      [switch]$SelfContained, [switch]$Test, [string]$SmoothFormsDirectory)
 $ErrorActionPreference = 'Stop'
 $project = Split-Path -Parent $PSScriptRoot
 $destination = [IO.Path]::GetFullPath($OutputDirectory)
@@ -25,4 +25,12 @@ $assetTarget = Join-Path $destination 'assets/vpet'
 New-Item -ItemType Directory -Path $assetTarget -Force | Out-Null
 foreach ($child in Get-ChildItem -LiteralPath $AssetDirectory) { Copy-Item -LiteralPath $child.FullName -Destination $assetTarget -Recurse -Force }
 Copy-Item -LiteralPath (Join-Path $project 'assets/tray.ico') -Destination (Join-Path $destination 'assets') -Force
+if ($SmoothFormsDirectory) {
+    foreach ($form in @('low','medium','high','xhigh','ultra','astra')) {
+        if (-not (Test-Path -LiteralPath (Join-Path $SmoothFormsDirectory "$form/clips.json"))) { throw ('Missing smooth form: ' + $form) }
+    }
+    $formsTarget = Join-Path $destination 'assets/dragon-forms'
+    New-Item -ItemType Directory -Path $formsTarget -Force | Out-Null
+    foreach ($form in Get-ChildItem -LiteralPath $SmoothFormsDirectory) { Copy-Item -LiteralPath $form.FullName -Destination $formsTarget -Recurse -Force }
+}
 Write-Output ('VPet runtime ready: ' + $destination)

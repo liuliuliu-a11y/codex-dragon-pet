@@ -1,20 +1,22 @@
 # 依赖与运行环境
 
-- 普通用户：从 GitHub Release 下载 Setup.exe 或已编译运行 ZIP，不需要 C# 编译器或 Inno Setup。
-- 系统：Windows 10/11 x64。
-- 运行时：.NET Framework 4.8，使用系统自带的 WPF、Windows Forms、System.Drawing 和 JSON 序列化组件。
-- Codex：需要在这台电脑上运行并正常登录。聊天状态从本地 `sessions/*.jsonl` 增量读取；账户额度由现有 Codex 可执行程序的 App Server 查询。
-- 构建：Windows 自带的 .NET Framework C# 编译器。`build.ps1` 使用 `%WINDIR%/Microsoft.NET/Framework64/v4.0.30319/csc.exe`，默认生成 x86 程序以降低本机测得的内存开销，可通过 `-Platform anycpu` 或 `-Platform x64` 切换。
-- PowerShell：Windows PowerShell 5.1 或 PowerShell 7，用于构建、打包和性能采样。
-- 自动联动：独立的 `CodexPetWatcher.exe` 使用 Windows 窗口激活事件和阻塞消息循环；不加载 WPF 渲染器，不要求管理员权限。`Install.ps1` 通过当前用户 Startup 快捷方式在登录时启动它。
-- 无需 Node.js、Python、Electron、完整 .NET SDK，也没有 npm、pip 或 NuGet 第三方包依赖。
+## 运行桌宠
 
-仅维护者重新生成安装包时需要 [Inno Setup 7](https://jrsoftware.org/isdl.php)。运行 `./scripts/Build-Installer.ps1 -CompilerPath '路径/ISCC.exe'`，脚本会重新构建、运行核心和 WPF 测试、打包运行 ZIP、生成安装 EXE 与 SHA-256 清单。发布包不包含 Inno Setup 编译器。
+- Windows 10/11 x64，正式 ZIP 自带 .NET 8 Windows Desktop 运行时。
+- Codex 工作状态与额度联动需要本机已安装并登录 Codex。
+- 聊天、记忆和养成需要另行配置兼容的本机小G服务；基础桌宠不依赖 Python 或模型 API 密钥。
 
-不需要为桌宠填写 API 密钥。额度连接使用 Codex 已有登录状态，只发送初始化与 `account/rateLimits/read` 请求，不发起模型推理。
+## 当前动画宿主
 
-首次从源码启动时，`start.cmd` 会在 `bin/` 中缺少程序时调用 `build.ps1`。运行包中已包含程序，可以直接双击 `start.cmd`。
+宿主使用 WPF / .NET 8 和 VPet-Simulator.Core 1.1.0.72，依赖 LinePutScript、LinePutScript.Localization.WPF、Panuon.WPF、Panuon.WPF.UI 和 SkiaSharp。具体版本锁定在项目依赖中，正式包附第三方声明与许可文本。
 
-`start-with-codex.cmd` 为联合启动入口，使用 Windows 已注册的 OpenAI.Codex 应用标识唤起 Codex，不会把 Codex CLI 当成桌面程序启动。
+六档动画使用预先生成的 PNG 和时间线。运行时无需联网生成图像或执行光流计算，缓存限制为近期动作。
 
-GPU 性能采样依赖 Windows 的 GPU Engine 与 GPU Process Memory 计数器；计数器不可用时会记为 `null`，不会当作 0。
+## 构建与素材生成
+
+- .NET 8 SDK：当前 `src/VPetHost` 宿主和原生窗口测试。
+- 系统 .NET Framework 4.x 编译器：状态桥接与 Codex 联动程序。
+- Windows PowerShell 5.1 或 PowerShell 7：构建、更新与打包脚本。
+- 重新烘焙六档动画时需要 Python、Pillow、numpy 和 OpenCV。源码附六张原始图，运行 ZIP 已含烘焙结果。
+
+原 `build.ps1` 继续维护旧版分层 WPF 实现，历史说明见 [旧版资料](docs/LEGACY-WPF.md)。当前宿主使用 `scripts/Build-VPet.ps1`，ZIP 使用 `scripts/Package-VPet.ps1` 生成。

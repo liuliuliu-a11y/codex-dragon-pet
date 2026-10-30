@@ -13,6 +13,7 @@ namespace CodexDragon
         public string version = "1";
         public bool connected, running, finishing;
         public string title, stage, message, completedId, updatedAt;
+        public string model, reasoningEffort, sessionId;
         public long completionSerial;
         public double? quotaUsed;
         public int? quotaMinutes;
@@ -29,6 +30,9 @@ namespace CodexDragon
                 running = session != null && session.Running,
                 finishing = session != null && session.Finishing,
                 title = session == null ? "Codex 陪伴" : session.Title,
+                model = session == null ? "" : session.Model,
+                reasoningEffort = session == null ? "" : session.ReasoningEffort,
+                sessionId = session == null ? "" : session.Id,
                 stage = session == null ? "等你开始工作" : session.Stage,
                 message = publicText.Length > 180 ? publicText.Substring(0, 180) + "…" : publicText,
                 completedId = completed, completionSerial = serial,

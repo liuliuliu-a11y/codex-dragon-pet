@@ -49,13 +49,15 @@ namespace CodexDragon
                 bool first;
                 using (var mutex = new Mutex(true, @"Local\CodexDragonPet", out first))
                 using (var show = new EventWaitHandle(false, EventResetMode.AutoReset, @"Local\CodexDragonPetShow"))
+                using (var chat = new EventWaitHandle(false, EventResetMode.AutoReset, @"Local\CodexDragonPetChat"))
                 {
-                    if (!first) { show.Set(); return 0; }
+                    if (!first) { if (args.Contains("--chat")) chat.Set(); else show.Set(); return 0; }
                     app.DispatcherUnhandledException += delegate(object sender, DispatcherUnhandledExceptionEventArgs e)
                     {
                         LogError(e.Exception); e.Handled = true;
                     };
                     var window = new PetWindow(true);
+                    if (args.Contains("--chat")) window.Loaded += delegate { window.OpenLifeChat(); };
                     if (args.Length > 1 && args[0] == "--verify-live")
                     {
                         string evidence = args[1];
@@ -68,8 +70,10 @@ namespace CodexDragon
                     }
                     var registration = ThreadPool.RegisterWaitForSingleObject(show, delegate
                     { if (!window.Dispatcher.HasShutdownStarted) window.Dispatcher.BeginInvoke(new Action(window.ShowAwake)); }, null, Timeout.Infinite, false);
+                    var chatRegistration = ThreadPool.RegisterWaitForSingleObject(chat, delegate
+                    { if (!window.Dispatcher.HasShutdownStarted) window.Dispatcher.BeginInvoke(new Action(window.OpenLifeChat)); }, null, Timeout.Infinite, false);
                     try { app.Run(window); }
-                    finally { registration.Unregister(null); mutex.ReleaseMutex(); }
+                    finally { registration.Unregister(null); chatRegistration.Unregister(null); mutex.ReleaseMutex(); }
                 }
                 return 0;
             }
@@ -189,7 +193,7 @@ namespace CodexDragon
             var shadow = new Ellipse { Width = 128, Height = 11, Fill = Ui.Brush("#187B668D"), HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Bottom, Margin = new Thickness(0, 0, 0, 49), IsHitTestVisible = false };
             scene.Children.Add(shadow);
             var transform = new TransformGroup(); transform.Children.Add(actionScale); transform.Children.Add(tiltTransform); transform.Children.Add(floatTransform); transform.Children.Add(actionOffset);
-            character = new Grid { Name = "PetCharacterHost", Width = 258, Height = 258, Background = Brushes.Transparent, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Bottom, Margin = new Thickness(0, 0, 0, 48), RenderTransform = transform, RenderTransformOrigin = new System.Windows.Point(.5, .85), Cursor = Cursors.Hand, ToolTip = "单击摸摸头 · 拖动调整位置 · 双击工作面板" };
+            character = new Grid { Name = "PetCharacterHost", Width = 258, Height = 258, Background = Brushes.Transparent, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Bottom, Margin = new Thickness(0, 0, 0, 48), RenderTransform = transform, RenderTransformOrigin = new System.Windows.Point(.5, .85), Cursor = Cursors.Hand, ToolTip = "单击摸摸头 · Ctrl+单击聊天 · 拖动调整位置 · 双击工作面板" };
             scene.Children.Add(character);
             previousSprite = new Image { Source = sprites[0], Opacity = 0, IsHitTestVisible = false, Stretch = Stretch.Uniform };
             character.Children.Add(previousSprite);
@@ -208,6 +212,7 @@ namespace CodexDragon
             character.MouseLeftButtonDown += delegate(object sender, MouseButtonEventArgs e)
             {
                 down = e.GetPosition(this); dragging = false;
+                if ((Keyboard.Modifiers & ModifierKeys.Control) != 0) { suppressClick = true; clickTimer.Stop(); OpenLifeChat(); e.Handled = true; return; }
                 suppressClick = e.ClickCount == 2;
                 if (suppressClick) { clickTimer.Stop(); OpenDashboard(); e.Handled = true; }
             };
@@ -239,6 +244,7 @@ namespace CodexDragon
                 Say("Codex 小龙", "已就位，陪你工作。", 8);
             }
             else monitor = new SessionMonitor(System.IO.Path.Combine(System.IO.Path.GetTempPath(), "codex-pet-preview-no-sessions"));
+            InitializeLifeLink(live);
         }
 
         private void LoadSprites()
@@ -318,11 +324,13 @@ namespace CodexDragon
         private void RefreshView()
         {
             Mood mood = selected == null ? Mood.Idle : selected.Mood;
+            if (lifeBusy && (selected == null || !selected.Running)) mood = Mood.Thinking;
             var window = quota == null ? null : quota.Main;
             if (window != null && quota.Fresh && !window.Expired && window.Used >= 80 && (selected == null || !selected.Running)) mood = Mood.LowQuota;
             if (selected != null && selected.Running && speechTitle == "本轮工作结束啦") speechUntil = DateTime.MinValue;
             SetMood(mood);
             string stage = selected == null ? "待命中" : selected.Stage;
+            if (lifeBusy && (selected == null || !selected.Running)) stage = "正在回应你";
             statusText.Text = "● " + Ui.Short(stage, 12);
             statusText.Foreground = selected != null && selected.Running ? Ui.Accent : Ui.Ink;
             quotaText.Text = (window == null ? "  ·  额度待获取" : "  ·  已用 " + Ui.Percent(window.Used) + ((!quota.Fresh || window.Expired) ? " *" : "")) + (settings.ClickThrough ? " · 穿透" : "");
@@ -375,6 +383,10 @@ namespace CodexDragon
         {
             var menu = new ContextMenu { FontFamily = new FontFamily("Microsoft YaHei UI"), FontSize = 13 };
             AddMenu(menu, "工作与额度面板", OpenDashboard);
+            AddMenu(menu, "和小G聊聊", OpenLifeChat);
+            AddMenu(menu, "打开小G日常", OpenLifeHome);
+            AddMenu(menu, settings.LifeLink ? "暂停小G联动" : "连接小G", delegate { SetLifeLink(!settings.LifeLink); });
+            AddMenu(menu, settings.LifeNotices ? "关闭小G主动气泡" : "开启小G主动气泡", delegate { settings.LifeNotices = !settings.LifeNotices; Persist(); ContextMenu = MakeMenu(); });
             AddMenu(menu, "回到当前 Codex 聊天", OpenCodex);
             menu.Items.Add(new Separator());
             AddMenu(menu, "一起喝茶", DrinkTea);
@@ -410,6 +422,7 @@ namespace CodexDragon
             var menu = new Forms.ContextMenuStrip();
             menu.Items.Add("显示并叫醒小龙", null, delegate { Dispatcher.BeginInvoke(new Action(ShowAwake)); });
             menu.Items.Add("工作与额度面板", null, delegate { Dispatcher.BeginInvoke(new Action(OpenDashboard)); });
+            menu.Items.Add("和小G聊聊", null, delegate { Dispatcher.BeginInvoke(new Action(OpenLifeChat)); });
             menu.Items.Add("一起喝茶", null, delegate { Dispatcher.BeginInvoke(new Action(delegate { Show(); DrinkTea(); })); });
             trayClickThrough = new Forms.ToolStripMenuItem("鼠标穿透（取消勾选可恢复互动）") { Checked = settings.ClickThrough };
             trayClickThrough.Click += delegate { Dispatcher.BeginInvoke(new Action(delegate { SetClickThrough(!settings.ClickThrough); })); };
@@ -536,6 +549,8 @@ namespace CodexDragon
         {
             if (closed) return; closed = true;
             if (timer != null) timer.Stop();
+            if (lifeTimer != null) lifeTimer.Stop();
+            if (lifeChat != null) lifeChat.Close();
             if (actionTimer != null) actionTimer.Stop();
             if (clickTimer != null) clickTimer.Stop();
             if (layeredTimer != null) layeredTimer.Stop();
@@ -600,6 +615,8 @@ namespace CodexDragon
                 clickThrough = settings.ClickThrough, nativeClickThrough = NativeWindow.IsClickThrough(new System.Windows.Interop.WindowInteropHelper(this).Handle),
                 trayRecoveryAvailable = trayClickThrough != null && trayClickThrough.Enabled,
                 customTrayIcon = trayArt != null && trayArt.Handle != IntPtr.Zero,
+                lifeOnline = lifeOnline, lifeBusy = lifeBusy, lifeCursor = settings.LastLifeMessage,
+                lifeChatOpen = lifeChat != null, lifePending = lifePending,
                 quiet = settings.Quiet, reduceMotion = settings.ReduceMotion, breathingAnimated = floatTransform.HasAnimatedProperties,
                 renderTier = RenderCapability.Tier >> 16, animationFrameRate = settings.ReduceMotion ? 0 : settings.Quiet ? 3 : 6,
                 quota = quota == null ? null : new { source = quota.Source, fresh = quota.Fresh, windows = quota.Windows.Select(w => new { used = w.Used, minutes = w.Minutes }) },

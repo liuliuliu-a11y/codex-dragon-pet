@@ -27,7 +27,8 @@ internal static class Program
         {
             using var mutex = new Mutex(true, demo ? "Local\\CodexVPetDemo" : "Local\\CodexVPet", out bool first);
             using var wake = new EventWaitHandle(false, EventResetMode.AutoReset, demo ? "Local\\CodexVPetDemoWake" : "Local\\CodexVPetWake");
-            if (!first) { wake.Set(); return 0; }
+            using var chat = new EventWaitHandle(false, EventResetMode.AutoReset, "Local\\CodexVPetChat");
+            if (!first) { if (Array.IndexOf(args, "--chat") >= 0) chat.Set(); else wake.Set(); return 0; }
             var app = new Application { ShutdownMode = ShutdownMode.OnMainWindowClose };
             app.DispatcherUnhandledException += (_, e) =>
             {
@@ -38,12 +39,17 @@ internal static class Program
             foreach (string name in new[] { "Theme.xaml", "basestyle.xaml" })
                 app.Resources.MergedDictionaries.Add(new ResourceDictionary { Source = new Uri("pack://application:,,,/VPet-Simulator.Core;component/Display/" + name) });
             var window = new CompanionWindow(profile, demo, evidence);
+            if (Array.IndexOf(args, "--chat") >= 0) window.Loaded += (_, _) => window.OpenLifeChat();
             var registration = ThreadPool.RegisterWaitForSingleObject(wake, (_, _) =>
             {
                 if (!window.Dispatcher.HasShutdownStarted) window.Dispatcher.BeginInvoke(new Action(window.ShowAwake));
             }, null, Timeout.Infinite, false);
+            var chatRegistration = ThreadPool.RegisterWaitForSingleObject(chat, (_, _) =>
+            {
+                if (!window.Dispatcher.HasShutdownStarted) window.Dispatcher.BeginInvoke(new Action(window.OpenLifeChat));
+            }, null, Timeout.Infinite, false);
             try { int result = app.Run(window); return result != 0 ? result : Environment.ExitCode; }
-            finally { registration.Unregister(null); mutex.ReleaseMutex(); }
+            finally { registration.Unregister(null); chatRegistration.Unregister(null); mutex.ReleaseMutex(); }
         }
         catch (Exception ex)
         {
